@@ -39,24 +39,46 @@ class _WebCadastroCampanhaScreenState
       current: AdminSection.cadastro,
       onSelect: widget.onSelect,
       child: SingleChildScrollView(
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final wide = c.maxWidth > 900;
-            final form = _buildForm();
-            final preview = _buildPreview();
-            if (wide) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 3, child: form),
-                  const SizedBox(width: 20),
-                  Expanded(flex: 2, child: preview),
-                ],
-              );
-            }
-            return Column(children: [form, const SizedBox(height: 20), preview]);
-          },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildBackLink(),
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, c) {
+                final wide = c.maxWidth > 900;
+                final form = _buildForm();
+                final preview = _buildPreview();
+                if (wide) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 3, child: form),
+                      const SizedBox(width: 20),
+                      Expanded(flex: 2, child: preview),
+                    ],
+                  );
+                }
+                return Column(
+                  children: [form, const SizedBox(height: 20), preview],
+                );
+              },
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBackLink() {
+    return TextButton.icon(
+      onPressed: () => widget.onSelect(AdminSection.campanhas),
+      icon: const Icon(Icons.arrow_back, size: 16),
+      label: const Text('Voltar para Campanhas'),
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.primary,
+        padding: EdgeInsets.zero,
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
       ),
     );
   }

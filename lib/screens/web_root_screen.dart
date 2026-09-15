@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../widgets/web_sidebar.dart';
 import 'web_dashboard_screen.dart';
+import 'web_campanhas_screen.dart';
 import 'web_cadastro_campanha_screen.dart';
+import 'web_promocoes_screen.dart';
 import 'web_postar_promo_screen.dart';
 import 'web_aprovacao_screen.dart';
 import 'web_relatorio_clientes_screen.dart';
@@ -23,8 +25,12 @@ class _WebRootScreenState extends State<WebRootScreen> {
     switch (_current) {
       case AdminSection.dashboard:
         return WebDashboardScreen(onSelect: _select);
+      case AdminSection.campanhas:
+        return WebCampanhasScreen(onSelect: _select);
       case AdminSection.cadastro:
         return WebCadastroCampanhaScreen(onSelect: _select);
+      case AdminSection.promocoes:
+        return WebPromocoesScreen(onSelect: _select);
       case AdminSection.postar:
         return WebPostarPromoScreen(onSelect: _select);
       case AdminSection.aprovacao:

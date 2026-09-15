@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
-enum AdminSection { dashboard, cadastro, postar, aprovacao, relatorio }
+enum AdminSection {
+  dashboard,
+  campanhas,
+  cadastro,
+  promocoes,
+  postar,
+  aprovacao,
+  relatorio,
+}
 
 class AdminSidebar extends StatelessWidget {
   final AdminSection current;
@@ -67,16 +75,18 @@ class AdminSidebar extends StatelessWidget {
                   const SizedBox(height: 18),
                   _SectionLabel('CAMPANHAS'),
                   _NavItem(
-                    icon: Icons.add_box_outlined,
-                    label: 'Cadastrar Campanha',
-                    selected: current == AdminSection.cadastro,
-                    onTap: () => onSelect(AdminSection.cadastro),
+                    icon: Icons.loyalty_outlined,
+                    label: 'Campanhas',
+                    selected: current == AdminSection.campanhas ||
+                        current == AdminSection.cadastro,
+                    onTap: () => onSelect(AdminSection.campanhas),
                   ),
                   _NavItem(
-                    icon: Icons.campaign_outlined,
-                    label: 'Postar Promoção',
-                    selected: current == AdminSection.postar,
-                    onTap: () => onSelect(AdminSection.postar),
+                    icon: Icons.local_offer_outlined,
+                    label: 'Promoções',
+                    selected: current == AdminSection.promocoes ||
+                        current == AdminSection.postar,
+                    onTap: () => onSelect(AdminSection.promocoes),
                   ),
                   _NavItem(
                     icon: Icons.fact_check_outlined,
@@ -436,6 +446,49 @@ class WebShell extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Rodapé padrão das telas de gestão do painel web (Campanhas, Promoções).
+class WebFooter extends StatelessWidget {
+  const WebFooter({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(color: AppColors.border),
+        const SizedBox(height: 16),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          runSpacing: 10,
+          children: [
+            const Text(
+              '© 2024 Acumula Aí Loyalty System. Todos os direitos reservados.',
+              style: TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+            ),
+            Wrap(
+              spacing: 20,
+              children: const [
+                Text(
+                  'Termos de Serviço',
+                  style: TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+                ),
+                Text(
+                  'Política de Privacidade',
+                  style: TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+                ),
+                Text(
+                  'Suporte Técnico',
+                  style: TextStyle(fontSize: 12.5, color: AppColors.textMuted),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
