@@ -1,0 +1,329 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+//
+// Espelha docs/schema.sql (raiz do projeto) — mesmos nomes de tabela/coluna.
+// Ver docs/MODELO_DADOS.md (modelo original) e docs/MECANICA_FIDELIDADE.md
+// (decisão vigente: mecânica configurável por loja — marcações ou pontos).
+//
+// Chaves primárias/estrangeiras em UUID (String @db.VarChar(36)), gerado
+// pelo Prisma (@default(uuid())) — decisão do usuário, 2026-09-18: boa
+// prática para não expor contagem/sequência via ID, e IDs previsíveis em
+// URLs/tokens. MySQL 5.7 não tem tipo UUID nativo, por isso VarChar(36).
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum TipoFidelidade {
+  MARCACOES
+  PONTOS
+}
+
+enum StatusCampanha {
+  ATIVA
+  EXPIRADA
+}
+
+enum StatusLicenca {
+  ATIVA
+  INADIMPLENTE
+  BLOQUEADA
+  CANCELADA
+}
+
+enum StatusContrato {
+  RASCUNHO
+  AGUARDANDO_ASSINATURA
+  ASSINADO
+  CANCELADO
+}
+
+enum StatusSolicitacao {
+  PENDENTE
+  APROVADA
+  REJEITADA
+}
+
+model Empresa {
+  id                    String           @id @default(uuid()) @db.VarChar(36)
+  nome                  String           @db.VarChar(150)
+  cnpj                  String           @unique @db.VarChar(18)
+  email                 String           @unique @db.VarChar(150)
+  senha_hash            String           @db.VarChar(255)
+  codigo_loja           String           @unique @db.VarChar(20)
+  categoria             String?          @db.VarChar(100)
+  empresa_pai_id        String?          @db.VarChar(36)
+  tipo_fidelidade       TipoFidelidade   @default(MARCACOES)
+  meta_fidelidade       Int              @default(10) @db.UnsignedInt
+  descricao_recompensa  String           @db.VarChar(255)
+  icone_url             String?          @db.VarChar(255)
+  logo_qrcode_url       String?          @db.VarChar(255)
+  logo_promocao_url     String?          @db.VarChar(255)
+  cor_principal         String           @default("#5B0A8F") @db.VarChar(7)
+  cor_destaque          String           @default("#FFC107") @db.VarChar(7)
+  nome_programa         String           @default("Cartão Fidelidade") @db.VarChar(100)
+  mensagem_boas_vindas  String?          @db.VarChar(255)
+  mensagem_resgate      String?          @db.VarChar(255)
+  texto_botao_resgate   String           @default("Resgatar recompensa") @db.VarChar(60)
+  created_at            DateTime         @default(now()) @db.Timestamp(0)
+  updated_at            DateTime         @default(now()) @updatedAt @db.Timestamp(0)
+
+  vinculos              Vinculo[]
+  campanhas             Campanha[]
+  regras_pontuacao      RegraPontuacao[]
+  licencas              Licenca[]
+  contratos             Contrato[]
+
+  /// Agrupamento de filiais sob uma matriz — só pra fins de gestão
+  /// comercial/cobrança pela 2RL (ver docs/SPEC.md seção 8). Login,
+  /// configuração e cartão fidelidade continuam 100% independentes por
+  /// filial; isso não afeta `Vinculo` nem a mecânica de fidelidade.
+  empresa_pai           Empresa?         @relation("FiliaisDaMatriz", fields: [empresa_pai_id], references: [id])
+  filiais               Empresa[]        @relation("FiliaisDaMatriz")
+
+  @@index([empresa_pai_id])
+  @@map("empresas")
+}
+
+/// Usuário interno da 2RL (equipe comercial/suporte) — painel de gestão
+/// de empresas-clientes, distinto do login da própria Empresa. Sem
+/// autocadastro: criado manualmente (script/seed), nunca por rota pública.
+model AdminInterno {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  nome        String   @db.VarChar(150)
+  email       String   @unique @db.VarChar(150)
+  senha_hash  String   @db.VarChar(255)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+
+  @@map("admins_2rl")
+}
+
+/// Plano comercial oferecido pela 2RL às empresas-clientes (base para a
+/// licença de uso). Valor/periodicidade simples por ora — sem limites de
+/// uso por plano ainda (ex: nº de clientes/lojas), a formalizar se surgir
+/// necessidade.
+model Plano {
+  id            String    @id @default(uuid()) @db.VarChar(36)
+  nome          String    @db.VarChar(100)
+  valor_mensal  Decimal   @db.Decimal(10, 2)
+  descricao     String?   @db.VarChar(255)
+  ativo         Boolean   @default(true)
+  created_at    DateTime  @default(now()) @db.Timestamp(0)
+
+  licencas      Licenca[]
+
+  @@map("planos")
+}
+
+/// Controla o acesso da empresa ao sistema conforme pagamento/contrato.
+/// Regra de bloqueio (decisão do usuário, 2026-09-17): ao vencer, a
+/// empresa entra em INADIMPLENTE durante `dias_tolerancia`; passado esse
+/// prazo sem regularizar, o admin (ou uma rotina futura) marca BLOQUEADA,
+/// o que impede login da Empresa (ver middleware `authEmpresa`).
+/// `gateway_*` ficam nulos até a 2RL escolher e integrar um gateway de
+/// pagamento — por ora a renovação/mudança de status é manual, feita
+/// pelo admin interno.
+model Licenca {
+  id                    String         @id @default(uuid()) @db.VarChar(36)
+  empresa_id            String         @db.VarChar(36)
+  plano_id              String         @db.VarChar(36)
+  status                StatusLicenca  @default(ATIVA)
+  data_inicio           DateTime       @db.Date
+  data_vencimento       DateTime       @db.Date
+  dias_tolerancia       Int            @default(5) @db.UnsignedInt
+  gateway_provedor      String?        @db.VarChar(50)
+  gateway_assinatura_id String?        @db.VarChar(150)
+  created_at            DateTime       @default(now()) @db.Timestamp(0)
+  updated_at            DateTime       @default(now()) @updatedAt @db.Timestamp(0)
+
+  empresa               Empresa        @relation(fields: [empresa_id], references: [id])
+  plano                 Plano          @relation(fields: [plano_id], references: [id])
+  contratos             Contrato[]
+
+  @@index([empresa_id])
+  @@map("licencas")
+}
+
+/// Contrato entre a 2RL e a empresa-cliente. `documento_url` recebe o PDF
+/// final (gerado a partir de um modelo) e `assinatura_*` referenciam o
+/// provedor de assinatura eletrônica (ex: Clicksign/D4Sign) — integração
+/// ainda pendente de escolha do provedor; por ora os status são
+/// atualizados manualmente pelo admin interno.
+model Contrato {
+  id                   String          @id @default(uuid()) @db.VarChar(36)
+  empresa_id           String          @db.VarChar(36)
+  licenca_id           String?         @db.VarChar(36)
+  status               StatusContrato  @default(RASCUNHO)
+  documento_url        String?         @db.VarChar(255)
+  assinatura_provedor  String?         @db.VarChar(50)
+  assinatura_id        String?         @db.VarChar(150)
+  data_criacao         DateTime        @default(now()) @db.Timestamp(0)
+  data_assinatura      DateTime?       @db.Timestamp(0)
+
+  empresa              Empresa         @relation(fields: [empresa_id], references: [id])
+  licenca              Licenca?        @relation(fields: [licenca_id], references: [id])
+
+  @@index([empresa_id])
+  @@map("contratos")
+}
+
+/// Log de cada chamada à API — base para a tela de monitoramento do admin
+/// interno (uso por empresa + saúde geral). Sem `@relation` de propósito:
+/// é um registro de auditoria/telemetria, não deve travar nem cascatear
+/// com a exclusão de uma Empresa/AdminInterno.
+model RequisicaoApi {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  metodo       String   @db.VarChar(10)
+  rota         String   @db.VarChar(255)
+  status_code  Int      @db.UnsignedSmallInt
+  duracao_ms   Int      @db.UnsignedInt
+  empresa_id   String?  @db.VarChar(36)
+  admin_id     String?  @db.VarChar(36)
+  ip           String?  @db.VarChar(45)
+  created_at   DateTime @default(now()) @db.Timestamp(0)
+
+  @@index([created_at])
+  @@index([empresa_id])
+  @@map("requisicoes_api")
+}
+
+model Cliente {
+  id                    String    @id @default(uuid()) @db.VarChar(36)
+  nome                  String    @db.VarChar(150)
+  cpf                   String    @unique @db.VarChar(11)
+  senha_hash            String    @db.VarChar(255)
+  telefone              String    @db.VarChar(20)
+  email                 String?   @db.VarChar(150)
+  notificacoes_push     Boolean   @default(true)
+  notificacoes_email    Boolean   @default(false)
+  login_biometrico      Boolean   @default(false)
+  created_at            DateTime  @default(now()) @db.Timestamp(0)
+
+  vinculos              Vinculo[]
+
+  @@map("clientes")
+}
+
+/// O "cartão fidelidade" — relação entre um cliente e uma empresa.
+/// saldo_atual é interpretado conforme empresas.tipo_fidelidade:
+/// contador de marcações (zera ao resgatar) ou saldo de pontos (resgate desconta só a meta).
+model Vinculo {
+  id                String     @id @default(uuid()) @db.VarChar(36)
+  cliente_id        String     @db.VarChar(36)
+  empresa_id        String     @db.VarChar(36)
+  saldo_atual       Int        @default(0) @db.UnsignedInt
+  data_vinculo      DateTime   @default(now()) @db.Timestamp(0)
+
+  cliente           Cliente               @relation(fields: [cliente_id], references: [id])
+  empresa           Empresa               @relation(fields: [empresa_id], references: [id])
+  marcacoes         Marcacao[]
+  resgates          Resgate[]
+  solicitacoes      SolicitacaoMarcacao[]
+
+  @@unique([cliente_id, empresa_id], map: "uq_cliente_empresa")
+  @@map("vinculos")
+}
+
+/// Promoção com validade própria, criada pela empresa. Sempre herda o
+/// tipo_fidelidade da empresa (não tem campo de tipo próprio — ver
+/// docs/MECANICA_FIDELIDADE.md seção 2). Aprovação é automática: não há
+/// estado de moderação, só ATIVA/EXPIRADA.
+model Campanha {
+  id             String          @id @default(uuid()) @db.VarChar(36)
+  empresa_id     String          @db.VarChar(36)
+  nome           String          @db.VarChar(150)
+  descricao      String?         @db.VarChar(255)
+  meta           Int             @db.UnsignedInt
+  data_validade  DateTime        @db.Date
+  status         StatusCampanha  @default(ATIVA)
+  created_at     DateTime        @default(now()) @db.Timestamp(0)
+
+  empresa        Empresa         @relation(fields: [empresa_id], references: [id])
+  marcacoes      Marcacao[]
+  resgates       Resgate[]
+
+  @@index([empresa_id])
+  @@map("campanhas")
+}
+
+/// Só relevante para empresas com tipo_fidelidade = PONTOS: define quantos
+/// pontos uma marcação concede. O critério de quando cada regra se aplica
+/// ainda não foi definido (ver docs/MECANICA_FIDELIDADE.md seção 4) — por
+/// ora `criterio` é um texto livre opcional, a formalizar depois.
+model RegraPontuacao {
+  id           String     @id @default(uuid()) @db.VarChar(36)
+  empresa_id   String     @db.VarChar(36)
+  descricao    String     @db.VarChar(150)
+  pontos       Int        @db.UnsignedInt
+  criterio     String?    @db.VarChar(255)
+  ativo        Boolean    @default(true)
+  created_at   DateTime   @default(now()) @db.Timestamp(0)
+
+  empresa      Empresa    @relation(fields: [empresa_id], references: [id])
+  marcacoes    Marcacao[]
+
+  @@index([empresa_id])
+  @@map("regras_pontuacao")
+}
+
+/// Histórico de cada compra marcada. campanha_id/regra_pontuacao_id ficam
+/// nulos quando a marcação é do programa contínuo padrão da loja (não de
+/// uma campanha específica) ou quando o tipo da loja é MARCACOES.
+model Marcacao {
+  id                  String          @id @default(uuid()) @db.VarChar(36)
+  vinculo_id          String          @db.VarChar(36)
+  campanha_id         String?         @db.VarChar(36)
+  regra_pontuacao_id  String?         @db.VarChar(36)
+  pontos_gerados      Int?            @db.UnsignedInt
+  data_hora           DateTime        @default(now()) @db.Timestamp(0)
+
+  vinculo             Vinculo         @relation(fields: [vinculo_id], references: [id])
+  campanha            Campanha?       @relation(fields: [campanha_id], references: [id])
+  regra_pontuacao     RegraPontuacao? @relation(fields: [regra_pontuacao_id], references: [id])
+
+  @@index([vinculo_id])
+  @@index([campanha_id])
+  @@map("marcacoes")
+}
+
+/// Pedido do cliente pra empresa validar uma compra (com ou sem cupom
+/// fiscal) — fila de pendências da tela "Aprovação" (ver
+/// docs/MECANICA_FIDELIDADE.md seção 9). Aprovar gera a `Marcacao` real e
+/// credita o vínculo; rejeitar só muda o status, sem efeito no saldo.
+model SolicitacaoMarcacao {
+  id             String            @id @default(uuid()) @db.VarChar(36)
+  vinculo_id     String            @db.VarChar(36)
+  cupom_fiscal   String?           @db.VarChar(50)
+  status         StatusSolicitacao @default(PENDENTE)
+  created_at     DateTime          @default(now()) @db.Timestamp(0)
+  resolved_at    DateTime?         @db.Timestamp(0)
+
+  vinculo        Vinculo           @relation(fields: [vinculo_id], references: [id])
+
+  @@index([vinculo_id])
+  @@map("solicitacoes_marcacao")
+}
+
+/// Histórico de recompensas liberadas. saldo_descontado = saldo_no_momento
+/// inteiro no tipo MARCACOES (zera tudo), ou só a meta no tipo PONTOS
+/// (saldo_restante fica > 0 se o cliente tinha mais que a meta).
+model Resgate {
+  id                String     @id @default(uuid()) @db.VarChar(36)
+  vinculo_id        String     @db.VarChar(36)
+  campanha_id       String?    @db.VarChar(36)
+  data_hora         DateTime   @default(now()) @db.Timestamp(0)
+  saldo_no_momento  Int        @db.UnsignedInt
+  saldo_descontado  Int        @db.UnsignedInt
+  saldo_restante    Int        @default(0) @db.UnsignedInt
+
+  vinculo           Vinculo    @relation(fields: [vinculo_id], references: [id])
+  campanha          Campanha?  @relation(fields: [campanha_id], references: [id])
+
+  @@index([vinculo_id])
+  @@map("resgates")
+}

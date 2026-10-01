@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Work+Sans:wght@400;500;600;700&display=swap');
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: var(--primary, #2856E0); text-decoration: none; }
+    a:hover { color: var(--primary-hover, #1d3fae); text-decoration: underline; }
+  </style>
+</helmet>
+<div style="--primary:{{accent}}; --primary-hover:color-mix(in oklch, var(--primary) 82%, black); --primary-soft:color-mix(in oklch, var(--primary) 10%, white); --bg:oklch(97% 0.006 250); --surface:oklch(100% 0 0); --border:oklch(89% 0.008 250); --text:oklch(20% 0.02 255); --text-muted:oklch(52% 0.014 255); width:1440px; min-height:900px; background:var(--bg); font-family:'Work Sans',system-ui,sans-serif; color:var(--text); position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+
+  <div style="position:absolute; top:-160px; right:-160px; width:520px; height:520px; border-radius:999px; background:var(--primary-soft); opacity:0.7;"></div>
+  <div style="position:absolute; bottom:-200px; left:-140px; width:420px; height:420px; border-radius:999px; background:var(--primary-soft); opacity:0.5;"></div>
+
+  <div style="position:relative; width:408px; background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:40px; display:flex; flex-direction:column; gap:22px; box-shadow:0 24px 48px -24px rgba(20,30,60,0.18);">
+
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div style="width:36px; height:36px; border-radius:10px; background:var(--primary); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+      </div>
+      <span style="font-family:'Sora',sans-serif; font-weight:700; font-size:19px; letter-spacing:0.2px;">ACUMULAAI</span>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <h1 style="margin:0; font-family:'Sora',sans-serif; font-weight:600; font-size:23px;">Entrar no painel</h1>
+      <p style="margin:0; font-size:14px; color:var(--text-muted); line-height:1.5;">Acesse para gerenciar o programa de fidelidade da sua loja.</p>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="font-size:13px; font-weight:600; color:var(--text);">E-mail</label>
+        <input type="text" value="contato@belacores.com.br" style="height:44px; border-radius:10px; border:1px solid var(--border); padding:0 14px; font-size:14px; font-family:inherit; color:var(--text); background:#fff;" />
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="font-size:13px; font-weight:600; color:var(--text);">Senha</label>
+        <input type="text" value="••••••••••" style="height:44px; border-radius:10px; border:1px solid var(--border); padding:0 14px; font-size:14px; font-family:inherit; color:var(--text); background:#fff; letter-spacing:2px;" />
+      </div>
+      <div style="display:flex; justify-content:flex-end;">
+        <a href="#" style="font-size:13px; font-weight:600;">Esqueci minha senha</a>
+      </div>
+    </div>
+
+    <button style="height:46px; border:none; border-radius:10px; background:var(--primary); color:#fff; font-family:inherit; font-weight:600; font-size:15px; cursor:pointer;">Entrar</button>
+
+    <div style="height:1px; background:var(--border);"></div>
+
+    <p style="margin:0; text-align:center; font-size:13px; color:var(--text-muted);">Ainda não tem acesso? Fale com a equipe da 2RL.</p>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#2856E0","options":["#2856E0","#0F766E","#7C3AED","#DC2626"]}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#2856E0' };
+  }
+}
+</script>
+</body>
+</html>
