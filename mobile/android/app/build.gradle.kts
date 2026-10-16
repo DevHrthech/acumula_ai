@@ -44,12 +44,25 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // Sempre a chave de release. Antes caía em silêncio na chave de
+            // debug quando o key.properties faltava, gerando um "release"
+            // que a Play recusaria (ou, pior, com a assinatura errada).
+            signingConfig = signingConfigs.getByName("release")
         }
+    }
+}
+
+// Gerar APK/AAB de release sem o key.properties é erro, não aviso.
+gradle.taskGraph.whenReady {
+    val gerandoRelease = allTasks.any {
+        it.name.contains("Release") &&
+            (it.name.startsWith("assemble") || it.name.startsWith("bundle") || it.name.startsWith("package"))
+    }
+    if (gerandoRelease && !keystorePropertiesFile.exists()) {
+        throw GradleException(
+            "key.properties não encontrado em android/ — não é possível assinar o release. " +
+                "Restaure o key.properties e o upload-keystore.jks (ver LEIAME do backup das chaves)."
+        )
     }
 }
 

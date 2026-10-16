@@ -5,6 +5,7 @@ import '../widgets/campaign_models.dart';
 import '../widgets/campaign_widgets.dart';
 import '../widgets/promo_catalog.dart';
 import '../widgets/section_label.dart';
+import 'atividades_screen.dart';
 import 'detalhe_promo_screen.dart';
 
 class MobileHomeScreen extends StatefulWidget {
@@ -26,7 +27,12 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   Future<void> _carregar() async {
     try {
       final session = ClienteSessionScope.of(context);
-      await Future.wait([session.carregarVinculos(), session.carregarResumo()]);
+      await Future.wait([
+        session.carregarVinculos(),
+        session.carregarResumo(),
+        // Campanhas são cartões extras: se falharem, o resto da tela segue.
+        session.carregarCampanhas().catchError((_) {}),
+      ]);
     } catch (_) {
       // Mantém a tela utilizável mesmo se a rede falhar — vínculos ficam
       // vazios e o estado de "sem lojas ainda" é mostrado.
@@ -92,6 +98,30 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                               );
                             }),
                           ],
+                          if (session.campanhas.isNotEmpty) ...[
+                            const SizedBox(height: 28),
+                            SectionLabel(theme: theme, title: 'Campanhas'),
+                            const SizedBox(height: 14),
+                            ...session.campanhas.map((c) {
+                              final data = promoDeCampanha(c as Map<String, dynamic>);
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: GestureDetector(
+                                  onTap: () => _openDetails(context, data),
+                                  child: CampaignListTile(
+                                    theme: theme,
+                                    campaign: Campaign(
+                                      name: data.campanhaNome ?? data.storeName,
+                                      stamps: '${data.storeName} · ${data.currentStamps}/${data.totalStamps} ${data.unidade}',
+                                      icon: Icons.local_activity_outlined,
+                                      iconBg: data.corPrincipal.withValues(alpha: 0.15),
+                                      progress: data.progress,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
                         ],
                       ],
                     ),
@@ -138,7 +168,11 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             shape: BoxShape.circle,
             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8)],
           ),
-          child: IconButton(icon: Icon(Icons.notifications_none, color: theme.primary), onPressed: () {}),
+          child: IconButton(
+            tooltip: 'Atividades',
+            icon: Icon(Icons.notifications_none, color: theme.primary),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AtividadesScreen())),
+          ),
         ),
       ],
     );
@@ -202,7 +236,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Vá em "Buscar" e escaneie o QR Code ou digite o código da loja.',
+            'Vá em "Buscar" e digite o código divulgado pela loja.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12.5, color: theme.textMuted),
           ),

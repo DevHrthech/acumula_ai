@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import '../services/cliente_api.dart';
 import '../state/cliente_session.dart';
 import '../theme/theme_provider.dart';
+import 'qr_scanner_screen.dart';
 
 /// Tela "Buscar" do bottom nav — vínculo do cliente a uma loja via código.
-/// A leitura de QR Code em si (câmera) fica fora de escopo por ora: o
-/// visor abaixo é ilustrativo, igual ao mockup original; o caminho
-/// funcional real é digitar o código da loja e confirmar.
+/// Dois caminhos: tocar no visor para ler o QR Code da loja com a câmera, ou
+/// digitar o código divulgado pela loja e confirmar.
 class VincularLojaScreen extends StatefulWidget {
   const VincularLojaScreen({super.key});
 
@@ -23,6 +23,16 @@ class _VincularLojaScreenState extends State<VincularLojaScreen> {
   void dispose() {
     _codigoController.dispose();
     super.dispose();
+  }
+
+  Future<void> _lerQr() async {
+    FocusScope.of(context).unfocus();
+    final lido = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+    );
+    if (lido == null || !mounted) return;
+    _codigoController.text = lido;
+    await _vincular();
   }
 
   Future<void> _vincular() async {
@@ -79,12 +89,14 @@ class _VincularLojaScreenState extends State<VincularLojaScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Aponte a câmera para o QR Code exposto na loja',
+                    'Leia o QR Code da loja ou digite o código divulgado por ela',
                     style: TextStyle(fontSize: 13, color: theme.textMuted),
                   ),
                   const SizedBox(height: 24),
                   Center(
-                    child: Container(
+                    child: GestureDetector(
+                      onTap: _carregando ? null : _lerQr,
+                      child: Container(
                       width: 220,
                       height: 220,
                       decoration: BoxDecoration(
@@ -107,14 +119,26 @@ class _VincularLojaScreenState extends State<VincularLojaScreen> {
                               ),
                             ),
                           Center(
-                            child: Icon(
-                              Icons.qr_code_scanner,
-                              size: 40,
-                              color: Colors.white.withValues(alpha: 0.35),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.qr_code_scanner,
+                                  size: 44,
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Toque para ler\no QR Code da loja',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.85)),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
+                    ),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -123,7 +147,7 @@ class _VincularLojaScreenState extends State<VincularLojaScreen> {
                       Expanded(child: Divider(color: theme.border)),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text('ou', style: TextStyle(fontSize: 12.5, color: theme.textMuted)),
+                        child: Text('digite o código', style: TextStyle(fontSize: 12.5, color: theme.textMuted)),
                       ),
                       Expanded(child: Divider(color: theme.border)),
                     ],

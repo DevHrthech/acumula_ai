@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import '../utils/mascaras.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../services/cliente_api.dart';
+import '../services/google_auth.dart';
 import '../state/cliente_session.dart';
 import '../theme/theme_provider.dart';
 import 'cadastro_screen.dart';
+import 'completar_google_screen.dart';
 import 'mobile_root_screen.dart';
+import 'recuperar_senha_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,6 +37,68 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
+  Future<void> _abrirRecuperacao() async {
+    final redefiniu = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => RecuperarSenhaScreen(cpfInicial: _cpfController.text.trim())),
+    );
+    if (redefiniu == true && mounted) {
+      _passwordController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Senha redefinida! Entre com a nova senha.')),
+      );
+    }
+  }
+
+  Future<void> _entrarComGoogle() async {
+    if (!GoogleAuth.disponivel) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('O login com Google ainda não está disponível. Entre com seu CPF e senha.')),
+      );
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _carregando = true;
+      _erro = null;
+    });
+    try {
+      final idToken = await GoogleAuth.obterIdToken();
+      if (idToken == null) {
+        setState(() => _erro = 'Não foi possível obter a identificação do Google.');
+        return;
+      }
+
+      if (!mounted) return;
+      final pendente = await ClienteSessionScope.of(context).loginGoogle(idToken);
+      if (!mounted) return;
+
+      if (pendente == null) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MobileRootScreen()));
+      } else {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => CompletarGoogleScreen(
+              nome: pendente['nome'] as String,
+              email: pendente['email'] as String,
+              tokenCadastro: pendente['tokenCadastro'] as String,
+            ),
+          ),
+        );
+      }
+    } on GoogleSignInException catch (e) {
+      if (e.code != GoogleSignInExceptionCode.canceled && mounted) {
+        setState(() => _erro = 'Não foi possível entrar com o Google. Tente novamente.');
+      }
+    } on ClienteApiException catch (e) {
+      if (mounted) setState(() => _erro = e.mensagem);
+    } catch (_) {
+      if (mounted) setState(() => _erro = 'Não foi possível entrar com o Google. Tente novamente.');
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
   Future<void> _login() async {
     FocusScope.of(context).unfocus();
     setState(() {
@@ -46,9 +113,9 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (_) => const MobileRootScreen()),
       );
     } on ClienteApiException catch (e) {
-      setState(() => _erro = e.mensagem);
+      if (mounted) setState(() => _erro = e.mensagem);
     } catch (e) {
-      setState(() => _erro = 'Não foi possível conectar à API.');
+      if (mounted) setState(() => _erro = 'Não foi possível conectar à API.');
     } finally {
       if (mounted) setState(() => _carregando = false);
     }
@@ -165,6 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextField(
                             controller: _cpfController,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [cpfFormatter],
                             decoration: _inputDecoration(theme,
                               hint: '000.000.000-00',
                               prefixIcon: Icons.badge_outlined,
@@ -183,12 +251,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               TextButton(
-                                onPressed: () {},
+                                onPressed: _abrirRecuperacao,
                                 style: TextButton.styleFrom(
                                   padding: EdgeInsets.zero,
                                   minimumSize: const Size(0, 0),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 child: Text(
                                   'Esqueceu a senha?',
@@ -312,20 +379,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   theme: theme,
                                   label: 'Google',
                                   iconWidget: _GoogleIcon(isDarkMode: theme.isDarkMode),
-                                  onPressed: () {},
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _SocialButton(
-                                  theme: theme,
-                                  label: 'Apple',
-                                  iconWidget: Icon(
-                                    Icons.apple,
-                                    color: theme.isDarkMode ? Colors.white : Colors.black,
-                                    size: 22,
-                                  ),
-                                  onPressed: () {},
+                                  onPressed: _carregando ? () {} : _entrarComGoogle,
                                 ),
                               ),
                             ],
@@ -442,6 +496,8 @@ InputDecoration _inputDecoration(ThemeProvider theme, {
   );
 }
 
+
+
 class _SocialButton extends StatelessWidget {
   final ThemeProvider theme;
   final String label;
@@ -458,28 +514,22 @@ class _SocialButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 50,
+      height: 54,
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          side: BorderSide(color: theme.border),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
           backgroundColor: theme.cardBg,
+          side: BorderSide(color: theme.border),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             iconWidget,
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Text(
               label,
-              style: TextStyle(
-                color: theme.textDark,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: theme.textDark),
             ),
           ],
         ),
@@ -490,26 +540,22 @@ class _SocialButton extends StatelessWidget {
 
 class _GoogleIcon extends StatelessWidget {
   final bool isDarkMode;
-
   const _GoogleIcon({required this.isDarkMode});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 22,
-      height: 22,
+      width: 26,
+      height: 26,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: isDarkMode ? Colors.grey.shade600 : Colors.grey.shade300, width: 1),
+        color: Colors.white,
+        border: Border.all(color: isDarkMode ? Colors.white24 : const Color(0xFFE0E0E0)),
       ),
       child: const Center(
         child: Text(
           'G',
-          style: TextStyle(
-            color: Color(0xFF4285F4),
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF4285F4)),
         ),
       ),
     );

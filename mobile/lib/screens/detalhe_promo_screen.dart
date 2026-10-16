@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../services/cliente_api.dart';
 import '../state/cliente_session.dart';
 import '../theme/theme_provider.dart';
 import '../widgets/promo_catalog.dart';
@@ -18,6 +19,7 @@ class _DetalhePromoScreenState extends State<DetalhePromoScreen> {
   Future<void> _solicitarMarcacao() async {
     final cupomFiscal = await showDialog<String>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => const _CupomFiscalDialog(),
     );
     if (cupomFiscal == null || !mounted) return;
@@ -30,6 +32,10 @@ class _DetalhePromoScreenState extends State<DetalhePromoScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Solicitação enviada! A loja vai validar sua compra em breve.')),
       );
+    } on ClienteApiException catch (e) {
+      // Ex.: "Você já tem uma solicitação aguardando validação nesta loja."
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.mensagem)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Não foi possível enviar a solicitação.')));
@@ -46,7 +52,7 @@ class _DetalhePromoScreenState extends State<DetalhePromoScreen> {
       listenable: theme,
       builder: (context, child) {
         return Scaffold(
-          backgroundColor: Colors.transparent,
+          backgroundColor: theme.bgPage,
           body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
@@ -101,8 +107,12 @@ class _DetalhePromoScreenState extends State<DetalhePromoScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(data.storeName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                  if (data.storeCategory != null)
+                  if (data.campanhaNome != null)
+                    const Text('CAMPANHA', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                  Text(data.campanhaNome ?? data.storeName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                  if (data.campanhaNome != null)
+                    Text(data.storeName, style: const TextStyle(color: Colors.white70, fontSize: 13))
+                  else if (data.storeCategory != null)
                     Text(data.storeCategory!, style: const TextStyle(color: Colors.white70, fontSize: 13)),
                 ],
               ),

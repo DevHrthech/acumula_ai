@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../utils/mascaras.dart';
 import '../services/cliente_api.dart';
 import '../state/cliente_session.dart';
 import '../theme/theme_provider.dart';
+import '../utils/links.dart';
 import 'mobile_root_screen.dart';
 
 class CadastroScreen extends StatefulWidget {
@@ -15,6 +18,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
   final _nomeController = TextEditingController();
   final _cpfController = TextEditingController();
   final _telefoneController = TextEditingController();
+  final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
   final _confirmarSenhaController = TextEditingController();
 
@@ -26,6 +30,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
     _nomeController.dispose();
     _cpfController.dispose();
     _telefoneController.dispose();
+    _emailController.dispose();
     _senhaController.dispose();
     _confirmarSenhaController.dispose();
     super.dispose();
@@ -39,6 +44,14 @@ class _CadastroScreenState extends State<CadastroScreen> {
         _telefoneController.text.trim().isEmpty ||
         _senhaController.text.isEmpty) {
       setState(() => _erro = 'Preencha todos os campos.');
+      return;
+    }
+    if (!cpfValido(_cpfController.text)) {
+      setState(() => _erro = 'CPF inválido. Confira os números.');
+      return;
+    }
+    if (!telefoneValido(_telefoneController.text)) {
+      setState(() => _erro = 'Telefone inválido. Informe o DDD e o número.');
       return;
     }
     if (_senhaController.text != _confirmarSenhaController.text) {
@@ -57,6 +70,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
         cpf: _cpfController.text.trim(),
         senha: _senhaController.text,
         telefone: _telefoneController.text.trim(),
+        email: _emailController.text.trim(),
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -102,11 +116,13 @@ class _CadastroScreenState extends State<CadastroScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  _campo(theme, label: 'Nome completo', controller: _nomeController),
+                  _campo(theme, label: 'Nome completo', controller: _nomeController, capitalization: TextCapitalization.words),
                   const SizedBox(height: 14),
-                  _campo(theme, label: 'CPF', controller: _cpfController, keyboardType: TextInputType.number),
+                  _campo(theme, label: 'CPF', controller: _cpfController, keyboardType: TextInputType.number, formatters: [cpfFormatter], hint: '000.000.000-00'),
                   const SizedBox(height: 14),
-                  _campo(theme, label: 'Telefone', controller: _telefoneController, keyboardType: TextInputType.phone),
+                  _campo(theme, label: 'Telefone', controller: _telefoneController, keyboardType: TextInputType.phone, formatters: [telefoneFormatter], hint: '(00) 00000-0000'),
+                  const SizedBox(height: 14),
+                  _campo(theme, label: 'E-mail (opcional, usado para recuperar a senha)', controller: _emailController, keyboardType: TextInputType.emailAddress, formatters: [semEspacos], hint: 'voce@email.com'),
                   const SizedBox(height: 14),
                   _campo(theme, label: 'Senha', controller: _senhaController, obscure: true),
                   const SizedBox(height: 14),
@@ -142,6 +158,26 @@ class _CadastroScreenState extends State<CadastroScreen> {
                             ),
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  Center(
+                    child: GestureDetector(
+                      onTap: () => abrirPoliticaPrivacidade(context),
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          text: 'Ao criar a conta, você concorda com a ',
+                          style: TextStyle(color: theme.textMuted, fontSize: 12.5),
+                          children: [
+                            TextSpan(
+                              text: 'Política de Privacidade',
+                              style: TextStyle(color: theme.primary, fontWeight: FontWeight.w600, decoration: TextDecoration.underline),
+                            ),
+                            const TextSpan(text: '.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 18),
                   Center(
                     child: GestureDetector(
@@ -174,6 +210,9 @@ class _CadastroScreenState extends State<CadastroScreen> {
     required String label,
     required TextEditingController controller,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? formatters,
+    String? hint,
+    TextCapitalization capitalization = TextCapitalization.none,
     bool obscure = false,
   }) {
     return Column(
@@ -187,9 +226,13 @@ class _CadastroScreenState extends State<CadastroScreen> {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          inputFormatters: formatters,
+          textCapitalization: capitalization,
           obscureText: obscure,
           style: TextStyle(color: theme.textDark),
           decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: theme.textHint),
             filled: true,
             fillColor: theme.surface,
             contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
