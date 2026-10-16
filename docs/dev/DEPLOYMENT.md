@@ -29,7 +29,7 @@ Servidor: FTPS explícito, porta 21, IP `107.161.183.117`. As três contas compa
 
 ### Ordem quando o lote muda o schema do Prisma
 
-`prisma db push` **primeiro** (só adição de coluna/tabela, nunca `--force-reset`/`--accept-data-loss`), depois enviar `server/src/` (árvore inteira, incluindo `src/generated/prisma/`). Se `package.json`/`package-lock.json` mudaram, enviar também e rodar **"Run NPM Install"** no Node.js App do cPanel (o `node_modules` de produção é um symlink; por FTP não dá pra instalar). Depois reiniciar o Passenger e conferir `/health`. Defina `NODE_ENV=production` no Node.js App para fechar o CORS de `localhost`.
+`prisma db push` **primeiro** (só adição de coluna/tabela, nunca `--force-reset`/`--accept-data-loss`), **depois `npx prisma generate`** (o `db push` NÃO regenera o client — esquecer isso derrubou todas as rotas autenticadas do cliente em 2026-10-15; `npm test` agora falha se o client estiver desatualizado), depois enviar `server/src/` (árvore inteira, incluindo `src/generated/prisma/`). Se `package.json`/`package-lock.json` mudaram, enviar também e rodar **"Run NPM Install"** no Node.js App do cPanel (o `node_modules` de produção é um symlink; por FTP não dá pra instalar). Depois reiniciar o Passenger e conferir `/health` **e uma rota autenticada de verdade** (o `/health` e um 401 sem token não pegam erro de client/schema): por exemplo rodar a API local contra o banco com um token de teste e chamar `GET /clientes/me`, ou testar pelo próprio app/painel logado. Defina `NODE_ENV=production` no Node.js App para fechar o CORS de `localhost`.
 
 ### ⚠️ Lição de um incidente real (registrado em SPEC.md seção 14)
 

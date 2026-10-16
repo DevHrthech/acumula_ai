@@ -26,6 +26,11 @@ class AcumulaAiApp extends StatelessWidget {
                   debugShowCheckedModeBanner: false,
                   theme: ThemeData.light(),
                   darkTheme: ThemeData.dark(),
+                  // Segue o interruptor "Modo escuro" do app, não o tema do
+                  // celular: com o celular em modo escuro e o app em claro, o
+                  // texto de campos sem cor própria (ex.: busca) saía branco
+                  // sobre fundo branco.
+                  themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
                   home: AnimatedTheme(
                     data: themeProvider.themeData,
                     duration: const Duration(milliseconds: 400),

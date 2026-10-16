@@ -155,6 +155,7 @@ class _PromocoesScreenState extends State<PromocoesScreen> {
         ),
         child: TextField(
           controller: _searchController,
+          style: TextStyle(color: theme.textDark),
           decoration: InputDecoration(
             hintText: 'Buscar promoções, lojas...',
             hintStyle: TextStyle(color: theme.textHint, fontSize: 14),

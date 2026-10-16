@@ -30,8 +30,13 @@ class AcumulaAiApp extends StatelessWidget {
                     navigatorKey: _navigatorKey,
                     title: 'Acumula Aí',
                     debugShowCheckedModeBanner: false,
-                    theme: ThemeData.light(),
-                    darkTheme: ThemeData.dark(),
+                    // O painel é claro (campos com fundo claro fixo, sem botão de
+                    // modo escuro). Seguir o tema do Windows deixava o texto dos
+                    // campos quase branco nas telas abertas por navegação (ex.:
+                    // depois do login). Todas as rotas usam o tema do app.
+                    theme: themeProvider.themeData,
+                    darkTheme: themeProvider.themeData,
+                    themeMode: ThemeMode.light,
                     home: AnimatedTheme(
                       data: themeProvider.themeData,
                       duration: const Duration(milliseconds: 400),

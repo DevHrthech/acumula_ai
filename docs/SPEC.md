@@ -561,6 +561,8 @@ Revisão completa de `server/`, `mobile/`, `web/` (painel da Empresa) e admin. C
 - **Testes automatizados** (`server/test`, `npm test`): datas, licença, validação e a lógica de cartões/campanhas (13 testes).
 - Lints dos três projetos zerados (`flutter analyze`: nenhum aviso).
 
+**Incidente do deploy (2026-10-15, ~23:30):** o lote subiu com o client do Prisma desatualizado (a coluna `token_valido_desde` entrou no schema e no banco, mas o `prisma generate` não foi refeito). Resultado: toda rota autenticada do cliente respondia 500 ("Unknown field token_valido_desde") — o login funcionava, mas ler o QR, listar lojas etc. falhavam. Achado reproduzindo a API local contra o banco; corrigido regenerando e reenviando `src/generated/prisma`. Proteção: `server/test/prisma-gerado.test.js`.
+
 **Decisões que NÃO foram tomadas no código (precisam do responsável)**
 - **Cadastro livre de empresa sem prova de posse do CNPJ** (`/auth/empresa/registrar`): alguém pode registrar o CNPJ de outra empresa e bloqueá-la. Opções: exigir aprovação do admin antes de ativar, ou confirmar e-mail do domínio/CNPJ. Hoje o admin corrige pelo painel (`PATCH /admin/empresas/:id` troca CNPJ/e-mail/senha).
 - **Minificação (R8) do app** não foi ligada: precisa de teste em aparelho para não quebrar os plugins (câmera, armazenamento seguro, Google).
