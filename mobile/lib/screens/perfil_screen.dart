@@ -1,6 +1,10 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import '../services/cliente_api.dart';
 import '../state/cliente_session.dart';
 import '../theme/theme_provider.dart';
+import '../widgets/avatar_cliente.dart';
 import 'login_screen.dart';
 
 class PerfilScreen extends StatefulWidget {
@@ -12,6 +16,8 @@ class PerfilScreen extends StatefulWidget {
 
 class _PerfilScreenState extends State<PerfilScreen> {
   bool _carregando = true;
+  bool _enviandoFoto = false;
+  final _picker = ImagePicker();
 
   @override
   void initState() {
@@ -27,6 +33,94 @@ class _PerfilScreenState extends State<PerfilScreen> {
     } finally {
       if (mounted) setState(() => _carregando = false);
     }
+  }
+
+  /// JPEG ou PNG pelos bytes iniciais (é o que a API aceita).
+  String? _tipoDaImagem(Uint8List b) {
+    if (b.length > 8 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4e && b[3] == 0x47) return 'image/png';
+    if (b.length > 3 && b[0] == 0xff && b[1] == 0xd8 && b[2] == 0xff) return 'image/jpeg';
+    return null;
+  }
+
+  Future<void> _escolherFoto(ImageSource origem) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final session = ClienteSessionScope.of(context);
+    try {
+      // Reduz na origem: foto de câmera tem vários MB e o avatar é pequeno.
+      final arquivo = await _picker.pickImage(source: origem, maxWidth: 640, maxHeight: 640, imageQuality: 85);
+      if (arquivo == null) return; // cancelou
+      final bytes = await arquivo.readAsBytes();
+      final tipo = _tipoDaImagem(bytes);
+      if (tipo == null) {
+        messenger.showSnackBar(const SnackBar(content: Text('Formato não suportado. Use uma foto JPG ou PNG.')));
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _enviandoFoto = true);
+      await session.trocarFoto(bytes, tipo);
+      messenger.showSnackBar(const SnackBar(content: Text('Foto atualizada!')));
+    } on ClienteApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.mensagem)));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('Não foi possível atualizar a foto. Tente novamente.')));
+    } finally {
+      if (mounted) setState(() => _enviandoFoto = false);
+    }
+  }
+
+  Future<void> _removerFoto() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final session = ClienteSessionScope.of(context);
+    setState(() => _enviandoFoto = true);
+    try {
+      await session.removerFoto();
+      messenger.showSnackBar(const SnackBar(content: Text('Foto removida.')));
+    } on ClienteApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.mensagem)));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('Não foi possível remover a foto.')));
+    } finally {
+      if (mounted) setState(() => _enviandoFoto = false);
+    }
+  }
+
+  void _abrirOpcoesFoto(bool temFoto) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Tirar foto'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _escolherFoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Escolher da galeria'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _escolherFoto(ImageSource.gallery);
+              },
+            ),
+            if (temFoto)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Remover foto', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _removerFoto();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _sair(BuildContext context) {
@@ -74,7 +168,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
   Widget _buildProfileCard(ThemeProvider theme, ClienteSession session) {
     final nome = (session.cliente?['nome'] as String?) ?? '';
     final contato = (session.cliente?['email'] as String?) ?? (session.cliente?['telefone'] as String? ?? '');
-    final iniciais = nome.trim().isEmpty ? '?' : nome.trim()[0].toUpperCase();
+    final fotoUrl = session.cliente?['foto_url'] as String?;
+    final temFoto = fotoUrl != null && fotoUrl.isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -84,11 +179,40 @@ class _PerfilScreenState extends State<PerfilScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: theme.cardBg, border: Border.all(color: theme.cardBg, width: 3)),
-            child: Center(child: Text(iniciais, style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: theme.primary))),
+          // Toque no avatar para trocar a foto (câmera ou galeria).
+          GestureDetector(
+            onTap: _enviandoFoto ? null : () => _abrirOpcoesFoto(temFoto),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AvatarCliente(
+                  fotoUrl: fotoUrl,
+                  nome: nome,
+                  tamanho: 76,
+                  fundo: theme.cardBg,
+                  corTexto: theme.primary,
+                  borda: theme.cardBg,
+                ),
+                if (_enviandoFoto)
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black38),
+                      child: const Center(
+                        child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white)),
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(color: theme.accent, shape: BoxShape.circle, border: Border.all(color: theme.cardBg, width: 2)),
+                    child: const Icon(Icons.photo_camera, size: 14, color: Color(0xFF1A1A1A)),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(

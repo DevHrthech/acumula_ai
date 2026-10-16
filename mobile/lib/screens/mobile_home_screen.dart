@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../state/cliente_session.dart';
 import '../theme/theme_provider.dart';
 import '../widgets/campaign_models.dart';
+import '../widgets/avatar_cliente.dart';
 import '../widgets/campaign_widgets.dart';
+import '../widgets/loja_logo.dart';
 import '../widgets/promo_catalog.dart';
 import '../widgets/section_label.dart';
 import 'atividades_screen.dart';
@@ -92,6 +94,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                                       icon: Icons.storefront_outlined,
                                       iconBg: data.corPrincipal.withValues(alpha: 0.15),
                                       progress: data.progress,
+                                      logoUrl: data.iconeUrl,
                                     ),
                                   ),
                                 ),
@@ -116,6 +119,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                                       icon: Icons.local_activity_outlined,
                                       iconBg: data.corPrincipal.withValues(alpha: 0.15),
                                       progress: data.progress,
+                                      logoUrl: data.iconeUrl,
                                     ),
                                   ),
                                 ),
@@ -140,15 +144,13 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       children: [
         Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: theme.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
-                border: Border.all(color: theme.cardBg, width: 2),
-              ),
-              child: Center(child: Icon(Icons.person, color: theme.cardBg, size: 24)),
+            AvatarCliente(
+              fotoUrl: session.cliente?['foto_url'] as String?,
+              nome: (session.cliente?['nome'] as String?) ?? '',
+              tamanho: 44,
+              fundo: theme.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+              corTexto: theme.cardBg,
+              borda: theme.cardBg,
             ),
             const SizedBox(width: 12),
             Column(
@@ -262,7 +264,16 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [data.corPrincipal, data.corPrincipal.withValues(alpha: 0.6)]),
             ),
-            child: Center(child: Icon(Icons.storefront, color: Colors.white70, size: 48)),
+            child: Center(
+              child: LojaLogo(
+                url: data.iconeUrl,
+                tamanho: 76,
+                corIcone: Colors.white70,
+                // Com logo: fundo claro pra ela aparecer sobre o degradê da marca.
+                fundo: data.iconeUrl == null ? Colors.transparent : Colors.white,
+                raio: 18,
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),

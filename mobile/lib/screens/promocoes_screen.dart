@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../state/cliente_session.dart';
 import '../theme/theme_provider.dart';
+import '../widgets/loja_logo.dart';
 import '../widgets/promo_catalog.dart';
 
 /// Aba "Promoções": avisos/posts publicados pelas lojas em que o cliente está
@@ -308,7 +309,14 @@ class _PromoPost extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.storefront, size: 18, color: Colors.white),
+                LojaLogo(
+                  url: logoDaEmpresa(empresa),
+                  tamanho: 30,
+                  icone: Icons.storefront,
+                  corIcone: Colors.white,
+                  fundo: logoDaEmpresa(empresa) == null ? Colors.transparent : Colors.white,
+                  raio: 8,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/cliente_api.dart';
 import '../services/google_auth.dart';
+import 'bloqueio.dart';
 
 /// Sessão de autenticação do Cliente logado — token JWT + dados retornados
 /// pela API. O token fica guardado no armazenamento seguro do aparelho
@@ -164,6 +165,18 @@ class ClienteSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Troca a foto de perfil (já reduzida pelo app). A API devolve o cliente
+  /// atualizado, então o avatar muda em todas as telas.
+  Future<void> trocarFoto(List<int> bytes, String contentType) async {
+    cliente = await api.enviarFoto(bytes, contentType);
+    notifyListeners();
+  }
+
+  Future<void> removerFoto() async {
+    cliente = await api.removerFoto();
+    notifyListeners();
+  }
+
   Future<void> atualizarEmail(String email) async {
     cliente = await api.atualizarEmail(email);
     notifyListeners();
@@ -176,6 +189,7 @@ class ClienteSession extends ChangeNotifier {
 
   void logout() {
     _apagarToken();
+    Bloqueio.instance.limpar();
     // Sai também da conta Google do aparelho (senão o próximo "Entrar com
     // Google" pode reaproveitar a conta anterior sem mostrar o seletor).
     GoogleAuth.sair();

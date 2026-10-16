@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/theme_provider.dart';
 import 'campaign_models.dart';
+import 'loja_logo.dart';
 
 class CampaignProgressBar extends StatelessWidget {
   final ThemeProvider theme;
@@ -54,18 +55,12 @@ class CampaignListTile extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: campaign.iconBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                campaign.icon,
-                color: theme.primary,
-                size: 24,
-              ),
+            LojaLogo(
+              url: campaign.logoUrl,
+              tamanho: 48,
+              icone: campaign.icon,
+              corIcone: theme.primary,
+              fundo: campaign.logoUrl == null ? campaign.iconBg : Colors.white,
             ),
             const SizedBox(width: 14),
             Expanded(

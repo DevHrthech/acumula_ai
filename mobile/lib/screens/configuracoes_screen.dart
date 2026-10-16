@@ -3,7 +3,9 @@ import '../state/cliente_session.dart';
 import '../theme/theme_provider.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../services/cliente_api.dart';
+import '../services/biometria.dart';
 import '../services/google_auth.dart';
+import '../state/bloqueio.dart';
 import '../utils/links.dart';
 import 'login_screen.dart';
 
@@ -23,6 +25,36 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Não foi possível salvar a preferência.')));
     }
+  }
+
+  /// Liga/desliga o bloqueio do app por digital/rosto. Nos dois sentidos pede a
+  /// identidade na hora: ligar prova que a biometria funciona neste aparelho
+  /// (senão o cliente se trancaria fora) e desligar impede que alguém com o
+  /// celular desbloqueado tire a proteção.
+  Future<void> _alternarBiometria(BuildContext context, bool ligar) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (!await Biometria.disponivel()) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Seu celular não tem digital, rosto ou bloqueio de tela configurado. Ative um nas configurações do celular.'),
+      ));
+      return;
+    }
+    final bloqueio = Bloqueio.instance;
+    bloqueio.autenticando = true;
+    ResultadoBiometria resultado;
+    try {
+      resultado = await Biometria.autenticar(
+        ligar ? 'Confirme sua identidade para ativar o desbloqueio por biometria' : 'Confirme sua identidade para desativar o desbloqueio por biometria',
+      );
+    } finally {
+      bloqueio.autenticando = false;
+    }
+    if (!context.mounted) return;
+    if (resultado != ResultadoBiometria.ok) {
+      messenger.showSnackBar(const SnackBar(content: Text('Não foi possível confirmar sua identidade.')));
+      return;
+    }
+    await _alternar(context, biometrico: ligar);
   }
 
   Future<void> _editarEmail(BuildContext context) async {
@@ -101,11 +133,11 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                     children: [
                       _SwitchTile(
                         theme: theme,
-                        title: 'Login biométrico',
-                        subtitle: 'Preferência salva — será ativado em breve',
+                        title: 'Desbloqueio por biometria',
+                        subtitle: 'Peça digital ou rosto ao abrir o app',
                         icon: Icons.fingerprint,
                         value: biometricEnabled,
-                        onChanged: (v) => _alternar(context, biometrico: v),
+                        onChanged: (v) => _alternarBiometria(context, v),
                       ),
                     ],
                   ),

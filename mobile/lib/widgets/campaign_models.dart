@@ -7,6 +7,7 @@ class Campaign {
   final Color iconBg;
   final double progress; // 0..1
   final String? tag; // ex: "Quase lá!"
+  final String? logoUrl; // logo da loja; se houver, substitui o ícone
 
   const Campaign({
     required this.name,
@@ -15,6 +16,7 @@ class Campaign {
     required this.iconBg,
     required this.progress,
     this.tag,
+    this.logoUrl,
   });
 }
 

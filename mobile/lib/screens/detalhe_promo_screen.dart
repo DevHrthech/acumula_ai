@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/cliente_api.dart';
 import '../state/cliente_session.dart';
 import '../theme/theme_provider.dart';
+import '../widgets/loja_logo.dart';
 import '../widgets/promo_catalog.dart';
 
 class DetalhePromoScreen extends StatefulWidget {
@@ -99,7 +100,15 @@ class _DetalhePromoScreenState extends State<DetalhePromoScreen> {
         ),
         child: Stack(
           children: [
-            const Center(child: Icon(Icons.storefront, color: Colors.white54, size: 56)),
+            Center(
+              child: LojaLogo(
+                url: data.iconeUrl,
+                tamanho: 84,
+                corIcone: Colors.white54,
+                fundo: data.iconeUrl == null ? Colors.transparent : Colors.white,
+                raio: 20,
+              ),
+            ),
             Positioned(
               left: 18,
               right: 18,

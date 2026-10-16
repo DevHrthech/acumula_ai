@@ -182,6 +182,22 @@ class ClienteApi {
     return await _handle(res) as Map<String, dynamic>;
   }
 
+  /// Foto de perfil: o app já envia reduzida (≈640px). Devolve o cliente
+  /// atualizado, com `foto_url`.
+  Future<Map<String, dynamic>> enviarFoto(List<int> bytes, String contentType) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/clientes/me/foto'),
+      headers: {'Content-Type': contentType, if (token != null) 'Authorization': 'Bearer $token'},
+      body: bytes,
+    );
+    return await _handle(res) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> removerFoto() async {
+    final res = await http.delete(Uri.parse('$baseUrl/clientes/me/foto'), headers: _headers);
+    return await _handle(res) as Map<String, dynamic>;
+  }
+
   /// Confirma com a [senha] ou, para quem entrou pelo Google, com um [idToken]
   /// recém-obtido da mesma conta Google.
   Future<void> excluirConta({String? senha, String? idToken}) async {

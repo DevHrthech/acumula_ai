@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Bloqueio do app por digital/rosto (local_auth). A verificação é do
+         próprio Android; o app não recebe nem guarda dado biométrico. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <application
         android:label="Acumula Aí"
         android:name="${applicationName}"
