@@ -563,6 +563,8 @@ Revisão completa de `server/`, `mobile/`, `web/` (painel da Empresa) e admin. C
 
 **Incidente do deploy (2026-10-15, ~23:30):** o lote subiu com o client do Prisma desatualizado (a coluna `token_valido_desde` entrou no schema e no banco, mas o `prisma generate` não foi refeito). Resultado: toda rota autenticada do cliente respondia 500 ("Unknown field token_valido_desde") — o login funcionava, mas ler o QR, listar lojas etc. falhavam. Achado reproduzindo a API local contra o banco; corrigido regenerando e reenviando `src/generated/prisma`. Proteção: `server/test/prisma-gerado.test.js`.
 
+**Erro de CORS no login (reportado pelo QA, 2026-10-16):** a lista de origens da API só tinha `https://acumulaai.com.br` e `https://admin.acumulaai.com.br`, mas `https://www.acumulaai.com.br/app/` abre o mesmo painel (200, sem redirecionar) — o login por esse endereço falhava com erro de CORS, e origem recusada virava um 500 sem cabeçalhos. Corrigido: `www` liberado, recusa com 403 claro, e `CORS_ORIGENS_EXTRAS` para domínios de teste (ver `docs/dev/DEPLOYMENT.md`). Teste: `server/test/cors.test.js`.
+
 **Decisões que NÃO foram tomadas no código (precisam do responsável)**
 - **Cadastro livre de empresa sem prova de posse do CNPJ** (`/auth/empresa/registrar`): alguém pode registrar o CNPJ de outra empresa e bloqueá-la. Opções: exigir aprovação do admin antes de ativar, ou confirmar e-mail do domínio/CNPJ. Hoje o admin corrige pelo painel (`PATCH /admin/empresas/:id` troca CNPJ/e-mail/senha).
 - **Minificação (R8) do app** não foi ligada: precisa de teste em aparelho para não quebrar os plugins (câmera, armazenamento seguro, Google).

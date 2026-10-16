@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const cors = require('cors');
 const helmet = require('helmet');
 
 const authEmpresaRoutes = require('./routes/authEmpresa');
@@ -18,6 +17,7 @@ const relatorioRoutes = require('./routes/relatorio');
 const logRequisicao = require('./middleware/logRequisicao');
 const { agendarLimpezaDeLogs } = logRequisicao;
 const { limiteGeral } = require('./middleware/rateLimiters');
+const { criarCors } = require('./utils/cors');
 
 const app = express();
 
@@ -31,26 +31,9 @@ app.use(helmet({
 
 app.set('trust proxy', 1); // atrás do Cloudflare — necessário pro rate limit identificar o IP real do cliente
 
-// Origens liberadas: painéis Web (loja + admin interno) em produção, mais
-// localhost em qualquer porta para desenvolvimento local. Não usa cookies
-// (autenticação é via Bearer token), então CORS aqui só controla quais
-// sites podem chamar a API pelo navegador.
-const origensPermitidas = [
-  'https://acumulaai.com.br',
-  'https://admin.acumulaai.com.br',
-  // localhost (desenvolvimento) só fora de produção — defina NODE_ENV=production
-  // no Node.js App do cPanel pra fechar essa porta.
-  ...(process.env.NODE_ENV === 'production' ? [] : [/^http:\/\/localhost:\d+$/]),
-];
-
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || origensPermitidas.some((o) => (o instanceof RegExp ? o.test(origin) : o === origin))) {
-      return callback(null, true);
-    }
-    return callback(new Error('Origem não permitida pelo CORS.'));
-  },
-}));
+// CORS: ver utils/cors.js (origens liberadas, CORS_ORIGENS_EXTRAS e o 403 claro
+// para origem recusada).
+app.use(criarCors());
 // Imagens de marca enviadas pelas empresas (ver routes/empresa.js). Os nomes
 // levam timestamp, então cache longo é seguro.
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), { maxAge: '7d', index: false }));

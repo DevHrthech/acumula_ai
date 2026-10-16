@@ -43,6 +43,10 @@ Deploy: envie o conteúdo de `landing/` direto pra raiz do doc-root da conta `we
 
 ⚠️ Antes de publicar, confira que não sobrou nenhum placeholder visível no código (ex.: número de WhatsApp nos CTAs de `index.html`) — o texto do plano original marcava isso explicitamente como bloqueio de publicação.
 
+### CORS (quais sites podem chamar a API pelo navegador)
+
+Regra em `server/src/utils/cors.js`: liberados `https://acumulaai.com.br`, `https://www.acumulaai.com.br` e `https://admin.acumulaai.com.br`; `localhost`/`127.0.0.1` (qualquer porta) só **fora** de produção (`NODE_ENV=production` fecha). Para liberar um domínio de teste/homologação do QA **sem mexer no código**, defina no Node.js App do cPanel a variável `CORS_ORIGENS_EXTRAS` (origens exatas separadas por vírgula, ex.: `https://qa.exemplo.com,https://outro.exemplo.com:8443`; curinga e caminho são ignorados) e reinicie o Passenger. Origem não liberada recebe **403** `{"erro":"Origem não permitida pela API.","origem":"..."}` — o navegador mostra isso como erro de CORS, mas a aba Network deixa claro qual origem foi recusada. O app do celular não é afetado (não envia `Origin`).
+
 ### Itens que persistem entre deploys (não apagar pelo FTP)
 - `server/uploads/` — imagens de marca enviadas pelas empresas (criada pela própria API).
 - `server/.env` — segredos de produção; nunca sobrescrever com o `.env` local.
