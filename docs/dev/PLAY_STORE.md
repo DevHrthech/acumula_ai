@@ -61,7 +61,7 @@ Tem uma loja e quer fidelizar seus clientes? Conheça o ACUMULAAI em acumulaai.c
 - **Público-alvo:** 18+ (evita os requisitos da política de Famílias).
 - **Classificação indicativa (questionário IARC):** sem violência, sexo, linguagem imprópria, drogas, jogos de azar ou interação entre usuários → resultado esperado: Livre.
 - **Acesso ao app para revisão:** o app exige login. Fornecer credenciais de teste no campo "Instruções de acesso": criar um cliente de revisão dedicado (CPF válido + senha) já vinculado a uma loja de teste. **[PENDENTE]** criar antes do envio (não usar o cliente de testes atual).
-- **Permissões:** `INTERNET`, `USE_BIOMETRIC` e `USE_FINGERPRINT` (as duas últimas vêm de uma biblioteca do login com Google; o app não coleta biometria). Sem permissão de anúncio (`AD_ID`): declarar que **não** usa ID de publicidade.
+- **Permissões:** `INTERNET`, `CAMERA` (leitura do QR Code da loja e foto de perfil), `USE_BIOMETRIC` (bloqueio do app por digital/rosto — a verificação é do Android; o app só recebe "passou/não passou") e `USE_FINGERPRINT` (vem junto de uma biblioteca). O app **não coleta biometria**. Sem permissão de anúncio (`AD_ID`): declarar que **não** usa ID de publicidade.
 
 ### Segurança dos dados (Data safety)
 
@@ -72,10 +72,12 @@ Tem uma loja e quer fidelizar seus clientes? Conheça o ACUMULAAI em acumulaai.c
 | E-mail | Sim | Não | Conta, recuperação de senha | Não (opcional) |
 | CPF (declarar em "Outras informações pessoais") | Sim | Sim (loja vinculada) | Identificação do cliente na loja, autenticação | Sim |
 | Atividade no app (marcações, saldo, resgates, solicitações) | Sim | Sim (loja vinculada) | Funcionalidade do app | Sim |
+| **Fotos** (foto de perfil — versão 1.0.2) | Sim | **Não** (a loja não vê a foto) | Funcionalidade do app (perfil) | **Não** (opcional) |
 
 - Dados criptografados em trânsito: **sim** (HTTPS).
 - Usuário pode solicitar exclusão dos dados: **sim** — no app (Configurações > Excluir minha conta) e por URL pública `https://acumulaai.com.br/excluir-conta.html` (informar essa URL no campo de exclusão de dados do Console).
 - Sem SDKs de anúncio ou analytics de terceiros no app.
+- **Atualização 1.0.2:** a foto de perfil é um dado novo — antes de enviar a 1.0.2, **adicionar "Fotos" na seção Segurança dos dados** do Play Console (coletada, opcional, não compartilhada, para a funcionalidade do app, criptografada em trânsito, apagada com a conta). A câmera continua só para o QR (no aparelho) e agora também para a foto, que o usuário escolhe tirar.
 
 ## 5. Checklist para a publicação oficial
 

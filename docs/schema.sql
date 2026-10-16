@@ -58,6 +58,7 @@ CREATE TABLE clientes (
   reset_expira_em     TIMESTAMP NULL,
   reset_tentativas    INT NOT NULL DEFAULT 0,
   token_valido_desde  TIMESTAMP NULL, -- tokens emitidos antes disso são recusados (senha redefinida)
+  foto_url            VARCHAR(255) NULL, -- foto de perfil opcional (uploads/clientes/<id>/)
   created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
