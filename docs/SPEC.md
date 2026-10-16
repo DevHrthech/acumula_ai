@@ -92,7 +92,7 @@ Empresas (geralmente pequeno/médio varejo e serviços) querem fidelizar cliente
 - [x] Cadastro/autenticação do cliente final no app: **CPF + senha** — mesmo CPF usado pela empresa na Web para marcar compras, evitando duplicidade de identificação.
 - [x] **Modelo de monetização da 2RL sobre a empresa cliente — decidido (2026-09-17):** assinatura recorrente por plano, com contrato formal e licença de uso que bloqueia acesso em caso de inadimplência. Gateway de pagamento específico ainda não escolhido. Ver seção 11.
 - [x] **Multi-loja / filiais — decidido e implementado (2026-09-19):** cada unidade/filial continua sendo uma linha independente em `empresas`, com login, configuração, mecânica e saldo de clientes 100% próprios (nada compartilhado). Agrupamento comercial simples via campo `empresa_pai_id` (auto-referência em `empresas`, sem entidade nova), controlado só pelo admin interno 2RL. Detalhes completos na seção 16.
-- [ ] Nome/identidade do app para a loja de aplicativos, contas de desenvolvedor (Apple/Google) já existentes?
+- [ ] Nome/identidade do app para a loja de aplicativos, contas de desenvolvedor (Apple/Google) já existentes? — **Atualização 2026-10-09:** nome definido ("Acumula Aí – Fidelidade", pacote `br.com.acumulaai.cliente`); a conta Google Play ainda precisa ser criada/verificada pelo responsável (passo a passo em [dev/PLAY_STORE.md](dev/PLAY_STORE.md)); Apple/iOS segue fora de escopo.
 - [ ] Confirmar espaço em disco disponível no plano de hospedagem cPanel para armazenar as imagens de marca de todas as empresas.
 - [ ] Definir se haverá redimensionamento/otimização automática das imagens no upload (ex: lib `sharp` no Node) para garantir os tamanhos recomendados mesmo se a empresa enviar um arquivo fora do padrão.
 
@@ -376,7 +376,7 @@ Ao subir os 5 arquivos novos/alterados do backend (`cpf.js`, `authCliente.js` ×
 Depois da seção 14, o usuário pediu uma varredura completa do código (`server/`, `web/`, `mobile/`) atrás de qualquer coisa ainda mockada ou sem endpoint, e que tudo fosse conectado de verdade. Feita uma auditoria (agente `Explore`) que confirmou: `server/` já estava 100% real; `web/` tinha 7 telas inteiras mockadas (Dashboard, Campanhas, Cadastro de Campanha, Promoções, Postar Promoção, Relatório de Clientes, Aprovação); `mobile/` tinha Início/Perfil/Promoções/Detalhe da Promoção/Configurações mockados, mais um arquivo morto (`lojas_screen.dart`, nunca referenciado).
 
 **Decisões de modelo de dados tomadas antes de codar (perguntadas ao usuário, evitando inventar schema sem confirmar):**
-- **"Promoções" (web) e as "Promoções" do mobile não são uma entidade nova** — são só outra vitrine visual da mesma `Campanha` já modelada. Nenhuma tabela nova pra isso.
+- ~~"Promoções" = outra vitrine da `Campanha`~~ **(revisto em 2026-10-15, ver seção 19):** Promoção agora é uma entidade própria (`Promocao`, só um aviso/post, sem cartão); quem gera cartão fidelidade é a Campanha.
 - **Dashboard não teria mais "Vendas Totais"/"Faturamento" fake** (não existe campo de valor monetário em nenhuma marcação/compra) — trocado por métricas 100% reais: clientes vinculados, campanhas ativas, marcações no mês, resgates no mês, e uma "Atividades Recentes" real (junção de `Marcacao`+`Resgate` mais recentes).
 - **Preferências do Cliente (push/e-mail/biométrico) ganharam campo real no banco e endpoint**, mesmo sem infraestrutura de envio de notificação ainda — decisão explícita do usuário, ciente da limitação.
 
@@ -397,8 +397,7 @@ Depois da seção 14, o usuário pediu uma varredura completa do código (`serve
 - **Dashboard:** 4 KPIs reais + tabela de atividades recentes real. Removidos o gráfico de linha e o donut de meta trimestral (não davam pra sustentar com dado real sem inventar métrica).
 - **Campanhas:** listagem real, criação real, toggle Ativa/Encerrada real. Removidas colunas de "clientes participando"/"resgates por campanha" (exigiria campanha específica sendo escolhida na Aprovação, fora de escopo).
 - **Cadastro de Campanha:** só os campos que a `Campanha` realmente tem (nome, descrição, meta, validade) — removidos Recompensa/Loja Vinculada/Periodicidade/Visibilidade/upload de imagem (sem coluna correspondente).
-- **Promoções:** mesma listagem de Campanhas, em cards, com filtro por status.
-- **Postar Promoção:** mesmo `POST /campanhas`, com o enquadramento visual de "oferta rápida".
+- **Promoções / Postar Promoção:** (revisto em 2026-10-15, seção 19) agora usam a entidade própria `Promocao` — título, descrição, validade opcional; sem meta.
 - **Relatório de Clientes:** lista real de vinculados com saldo/marcações/resgates/data de vínculo. Removidos cidade/tier/gasto total/ações sem destino (não existe endereço nem valor monetário no cadastro do cliente).
 - **Aprovação:** fila real (antes só existia mockada desde a criação original em 2026-09-15), aprovar/rejeitar reais, marcação manual real, progresso "X de Y" lido do vínculo real.
 
@@ -466,4 +465,107 @@ Decisão de 2026-09-30. Antes, `acumulaai.com.br` servia direto o build do Flutt
 
 **Documentação atualizada:** `docs/dev/DEPLOYMENT.md` — nova seção `landing/` + instruções de build/deploy do `web/` ajustadas pro `--base-href /app/` e pro subcaminho `app/` no doc-root.
 
-**Ainda não deployado em produção** — feito e revisado só localmente. Antes de publicar: rodar o `flutter build web --target=lib/main.dart --base-href /app/`, subir `landing/` pra raiz do `public_html` (conta `web@acumulaai.com.br`) e o novo build do `web/` pra dentro de `public_html/app/`, depois purgar cache do Cloudflare e validar (ver `docs/dev/DEPLOYMENT.md`). Só fazer isso com confirmação explícita do usuário, seguindo a regra já registrada de não publicar/reiniciar produção sem ele por perto.
+**(Atualização 2026-10-09: já publicado e no ar — ver seção 18.)** Passos usados para publicar: rodar o `flutter build web --target=lib/main.dart --base-href /app/`, subir `landing/` pra raiz do `public_html` (conta `web@acumulaai.com.br`) e o novo build do `web/` pra dentro de `public_html/app/`, depois purgar cache do Cloudflare e validar (ver `docs/dev/DEPLOYMENT.md`). Só fazer isso com confirmação explícita do usuário, seguindo a regra já registrada de não publicar/reiniciar produção sem ele por perto.
+
+
+## 18. Preparação para publicar na Play Store (2026-10-08/09) — release, conformidade, recuperação de senha e login com Google
+
+Sessão dedicada a deixar o app `mobile/` pronto para a Google Play e a fechar as lacunas que a revisão da loja costuma reprovar. Tudo abaixo foi **testado e publicado em produção**, salvo onde indicado. Documentação operacional complementar: [dev/PLAY_STORE.md](dev/PLAY_STORE.md) (checklist de publicação), [dev/LOGIN_GOOGLE.md](dev/LOGIN_GOOGLE.md), [dev/API.md](dev/API.md), [dev/DEPLOYMENT.md](dev/DEPLOYMENT.md).
+
+### Build de release e identidade do app
+- `applicationId`/`namespace` trocados de `com.example.acumulaai_mobile` (a Play Store recusa `com.example.*`) para **`br.com.acumulaai.cliente`**; nome do app "Acumula Aí"; `MainActivity.kt` movido para o novo pacote.
+- **Assinatura de release própria:** keystore de upload `mobile/android/app/upload-keystore.jks` (PKCS12, RSA 2048, ~27 anos) + `mobile/android/key.properties`, ambos **fora do git** (`.gitignore` do Flutter). Build conferido com `apksigner` (fingerprint do APK = o do keystore, não o de debug). SHA-1 da chave de upload: `3C:44:98:A2:D3:49:BB:F6:55:A2:9A:76:0D:DB:12:79:B3:06:9D:D5`. **Backup do `.jks` e das senhas fora deste PC é responsabilidade do responsável** — perder a chave impede atualizar o app (mitigação: Play App Signing).
+- Artefatos: `flutter build appbundle --release` (`.aab`, ~54 MB, formato exigido pela loja) e `flutter build apk --release`. Versão atual `1.0.0+1`. `minSdk 24`, `targetSdk 36`.
+- **Ícone do app:** aplicado o símbolo da marca (triângulo amarelo sobre o roxo `#5B0A8F`, o mesmo da tela de login) como ícone adaptativo do Android (`mipmap-anydpi-v26`, com versão monocromática para o tema de ícones do Android 13+) e como ícones legados (`mipmap-*/ic_launcher.png`). É um **desenho provisório gerado a partir do símbolo existente** — se o responsável tiver um logo definitivo, substituir os arquivos de `mobile/android/app/src/main/res/mipmap-*` e rebuildar o `.aab`. Rascunhos para a ficha da loja em `docs/play-store/assets/` (ícone 512×512 e imagem de destaque 1024×500).
+
+### Funcionalidades novas / correções no app (`mobile/`)
+- **Exclusão de conta** (exigência da Google e da LGPD): `DELETE /clientes/me` (confirma a senha; apaga em transação cliente, vínculos, marcações, solicitações e resgates) + item "Excluir minha conta" em Configurações + página pública `landing/excluir-conta.html` (URL para informar no Play Console). Testado em produção com cliente descartável.
+- **Política de privacidade acessível dentro do app** (link no Cadastro e em Configurações > Sobre, via `url_launcher`) e e-mail como campo opcional no Cadastro.
+- **Recuperação de senha** ("Esqueceu a senha?" agora funciona): código de 6 dígitos por e-mail (validade 15 min, uso único, bloqueio após 5 erros, 1 envio/min por conta, 5 pedidos/h por IP, resposta igual exista ou não a conta). Colunas novas em `clientes`: `reset_codigo_hash`, `reset_expira_em`, `reset_tentativas`. Envio por `sendmail` da hospedagem (`server/src/utils/mailer.js`, sem credencial SMTP) — **validado com e-mail real**. "E-mail de recuperação" editável em Configurações (`PATCH /clientes/me`).
+- **Tela "Atividades"** (sino do Início, antes um botão morto): `GET /clientes/me/atividades` — marcações, resgates e solicitações com status, de todas as lojas.
+- **Login com Google** (ver abaixo). O botão da **Apple foi escondido** por decisão do responsável.
+- **Textos que prometiam o que não existe foram corrigidos:** QR Code (a tela Buscar só vincula digitando o código; visor mostra "Leitura de QR Code em breve"), e as chaves de push/e-mail/biometria agora dizem "Preferência salva — será ativado em breve" (só gravam o valor, não há push nem biometria por trás).
+- **Bug corrigido:** a tela de Detalhe do cartão aparecia com fundo preto (Scaffold transparente numa rota empilhada).
+- **Falha de segurança evitada antes do deploy:** os campos novos de recuperação (`reset_codigo_hash`…) e `google_id` seriam devolvidos nas respostas de cliente (inclusive às lojas) — `sanitizarCliente` foi ajustado em `authCliente.js`, `cliente.js` e `solicitacoes.js`.
+
+### Login com Google
+- App: `google_sign_in` 7.x, `mobile/lib/config/google.dart` (Web Client ID). Servidor: `POST /auth/cliente/google` valida o ID token no `tokeninfo` do Google (`aud`, emissor, validade, e-mail verificado) e: entra se o `google_id` já existe; vincula e entra se há cliente com o mesmo e-mail; senão devolve `precisaCadastro` e o app abre **"Concluir cadastro"** (CPF e telefone, obrigatórios no sistema) → `POST /auth/cliente/google/completar`. Coluna nova `clientes.google_id` (única).
+- Projeto no Google Cloud (Google Auth Platform): Web Client ID `954272668229-hrcersad8banluij7r90eis9t2jbp2u6.apps.googleusercontent.com` (app + servidor); cliente Android `954272668229-6se7knrj7djssfqiini3p09kg59hlfe8…` com o SHA-1 da chave de upload. E-mail de suporte do consentimento = o da conta Google dona do projeto (o campo não aceita outro domínio).
+- **Validado em produção com o Google real:** conta existente (vínculo por e-mail) e primeiro acesso (CPF + telefone). Os dados do teste foram removidos.
+- **Pendente:** após o 1º upload na Play Store, criar no Google Cloud outro cliente Android com o **SHA-1 do Play App Signing** (senão o login falha nos apps instalados pela loja).
+
+### Painel da Empresa (`/app/`)
+- **QR Code e código da loja** em Configurações (QR do `codigo_loja`; copiar código; baixar PNG 1024×1024 com o logo numa caixa branca central — correção de erro nível H). Antes só existia no mockup HTML, nunca no Flutter.
+- **Upload das 3 imagens de marca** (ícone, logo do QR, logo de promoções) que antes eram caixas decorativas: `PUT/DELETE /empresas/me/imagens/:tipo` (binário PNG/JPEG até 2 MB, validado pelos bytes; arquivos em `server/uploads/<empresaId>/`, servidos em `/uploads/`). Ainda **não são exibidas no app mobile**.
+- **Sessão persistente:** o login sobrevivia só em memória (F5 derrubava). Agora o token fica no `localStorage`, é validado ao abrir (`GET /empresas/me`) e 401 durante o uso leva ao login. O painel admin continua só em memória.
+- **Cache busting obrigatório em todo deploy do Flutter Web:** o Cloudflare impõe `max-age=14400` nos `.js` (ignora o `.htaccess`) e o usuário via a versão antiga; o `index.html` (nunca cacheado) passa a apontar `flutter_bootstrap.js?v=<carimbo>` e `main.dart.js?v=<carimbo>`. Passo documentado em `dev/DEPLOYMENT.md`.
+- `acumulaai.com.br` (landing em `/`, painel em `/app/`) e `admin.acumulaai.com.br` confirmados **no ar**; o "ainda não deployado" da seção 17 está desatualizado.
+
+### Material da Play Store
+- [dev/PLAY_STORE.md](dev/PLAY_STORE.md): ficha (nome, descrições, categoria), declarações (Segurança dos dados, classificação, anúncios), checklist de publicação por responsável e riscos.
+- 6 capturas 1080×2160 (proporção 2:1, sem barra de status) em `docs/play-store/screenshots/`, tiradas no celular físico.
+- **Cliente de revisão para o Google** criado em produção ("Revisor Google Play", CPF `390.533.447-05`, vinculado à Loja Teste com 3/10). A senha **não** é versionada — está só com o responsável. Não apagar enquanto o app estiver em análise.
+
+### Dados de teste em produção (estado ao fim da sessão)
+Empresa "Loja Teste" (`ZZ28B4H8`), admin `admin@2rl.com.br`, clientes "Cliente Teste" (CPF `529.982.247-25`, e-mail de teste do responsável), "Revisor Google Play" e "rozenraurio" (conta real — não tocar). Todos os dados descartáveis dos testes (clientes de QA, imagens, conta Google de teste) foram removidos.
+
+### Lições
+- "Corrigir" um item quebrado = **fazer funcionar ou construir o que falta**, não remover (o responsável corrigiu esse entendimento).
+- Testes de rate limit (10 logins/15 min, 5 cadastros/h por IP) mascaram casos seguintes — reiniciar o servidor local zera os contadores.
+- `taskkill` por nome de imagem mata todos os `node.exe` da máquina; encerrar sempre por porta/PID.
+- Antes de qualquer deploy, conferir que `baseUrl` dos clientes aponta para produção e que o build não contém `localhost`.
+
+### Decisões e andamento da publicação
+- Tipo de conta no Play Console: o responsável informou "pessoal e recente", mas o console mostra **"Conta da organização" (Hr Thech)**, com outros apps já publicados; na página Produção do app o botão "Criar nova versão" está liberado, **sem exigência visível de teste fechado**. Conclusão provisória: o teste de 12 testadores/14 dias provavelmente não se aplica (confirmar ao enviar). Roteiro completo em [dev/PLAY_CONSOLE_PASSO_A_PASSO.md](dev/PLAY_CONSOLE_PASSO_A_PASSO.md).
+- Permissões reais do APK: `INTERNET`, `USE_BIOMETRIC`, `USE_FINGERPRINT` (vindas da biblioteca do login com Google); sem `AD_ID`.
+
+### Andamento no Play Console (2026-10-09, feito com acompanhamento do responsável)
+- App criado no console: "Acumula Aí – Fidelidade", pacote `br.com.acumulaai.cliente`, conta de desenvolvedor "Hr Thech" (organização). Status do app: Rascunho.
+- **Conteúdo do app concluído** (todas as declarações com ✔): política de privacidade, detalhes do login (cliente de revisão), anúncios, classificação de conteúdo, público-alvo (18+), segurança dos dados, apps do governo, recursos financeiros e saúde.
+- **Configurações da loja:** categoria **Compras**, e-mail `privacidade@acumulaai.com.br`, site `https://acumulaai.com.br` (salvos como rascunho).
+- **Página "Detalhes do app" padrão (pt-BR):** nome, breve descrição, descrição completa, ícone 512, imagem de destaque e 6 capturas, na ordem Início, Detalhe do cartão, Buscar, Promoções, Perfil, Configurações — **concluída e salva** (passo 2 "Avaliação": declaração de recursos de IA = **"Não rotular recursos"**, escolha do responsável, pois ícone e imagem de destaque foram desenhados por script e as capturas são do app real). As mudanças aguardam envio em "Visão geral da publicação".
+- **Versão de Produção preparada (2026-10-09):** `.aab` enviado (versão `1 (1.0.0)`, Android 24+, SDK 36, 3 ABIs, 15,1 MB para novas instalações), notas da versão em pt-BR, país **Brasil** adicionado; revisão da versão = "Tudo pronto para o lançamento"; **enviada ao Google para análise pelo responsável em 2026-10-09** (10 mudanças; público-alvo corrigido para 18+ antes do envio).
+- **Play App Signing ativo:** SHA-1 do certificado da chave de **assinatura do app** (a que vale nos aparelhos que instalam pela loja): `CA:13:AB:53:E0:64:1B:87:E6:24:C0:06:D8:FE:25:43:97:29:E3:59`. **Cadastrado em 2026-10-09** no Google Cloud (projeto `acumula-ai`) como o cliente OAuth Android "Cliente Android Play Store" (pacote `br.com.acumulaai.cliente`). **Resolvido na mesma data:** o app OAuth estava em "Testando" (só contas do projeto entravam). Branding completado (página inicial `https://acumulaai.com.br`, política `https://acumulaai.com.br/privacidade.html`, domínio autorizado `acumulaai.com.br`, contato do desenvolvedor `privacidade@acumulaai.com.br`) e o app foi **publicado: status "Em produção"** em Google Auth Platform → Público-alvo (usuário externo; escopos `openid`, `email`, `profile` não exigem verificação; limite de 100 usuários só vale para escopos sensíveis). O SHA-1 da chave de upload (`3C:44:98:…:9D:D5`) já está cadastrado.
+- **SHA-1 do Play App Signing cadastrado no Google Cloud, mudanças enviadas em 2026-10-09 e app APROVADO e PUBLICADO (verificado no Painel em 2026-10-11: "A atualização do app foi publicada").** Próximo: testar o login com Google e os fluxos no app instalado pela loja; recomendação do Google (não bloqueante): conferir exibição de ponta a ponta (edge-to-edge) no Android 15+.
+
+### Pendências para publicar (resumo; detalhe em dev/PLAY_STORE.md)
+Conta de desenvolvedor Google Play (US$ 25 + verificação de identidade; pessoal vs. organização), logo definitivo (opcional — há rascunhos prontos), caixa `privacidade@acumulaai.com.br`, teste fechado (12 testadores por 14 dias se a conta for pessoal e nova), SHA-1 do Play App Signing no Google Cloud, exibir as imagens de marca no app e implementar push/biometria reais (hoje só preferências).
+
+## 19. Campanhas × Promoções (2026-10-15)
+
+Correção de um desvio da seção 14: Promoção estava só "reaproveitando" a Campanha, então o app mostrava um cartão por loja e a aba Promoções era a mesma lista de cartões. Agora são duas coisas distintas:
+
+- **Campanha** (meta + validade) **gera um cartão fidelidade próprio** no app do cliente — um cartão por campanha ativa e dentro da validade, de cada loja vinculada, listado em "Campanhas" na tela Início. Cada compra aprovada (`creditarVinculo`) credita o cartão contínuo da loja **e** o de cada campanha vigente (`Marcacao`/`Resgate` com `campanha_id`); o saldo da campanha é calculado (`saldoCampanha`), e ao bater a meta o resgate da campanha é gerado e o cartão recomeça. As marcações de campanha são cópias da mesma compra e **não** entram nas contagens de relatório/dashboard/perfil/atividades (filtro `campanha_id: null`).
+- **Promoção** (`Promocao`: título, descrição, validade opcional, status) é **só um aviso/post**: sem meta, sem cartão, sem marcação. Aparece na aba "Promoções" do app, listando as promoções ativas de todas as lojas vinculadas (busca + filtro por categoria).
+- API nova: `GET/POST/PATCH/DELETE /empresas/me/promocoes`, `GET /clientes/me/campanhas`, `GET /clientes/me/promocoes` (ver docs/dev/API.md). Tabela nova `promocoes` (aditiva; exige `prisma db push` local + subir `src/generated/prisma`).
+- Também nesta rodada: diálogos de cadastro/edição (web admin, web, app) não fecham mais ao clicar fora (`barrierDismissible: false`).
+
+## 20. Revisão geral e correções (2026-10-15, à noite)
+
+Revisão completa de `server/`, `mobile/`, `web/` (painel da Empresa) e admin. Corrigido **no código** (ver "Publicação" abaixo — nada disto está em produção ainda):
+
+**Segurança / correção**
+- **Exclusão de conta de quem entrou pelo Google:** a confirmação exigia uma senha que essas contas não têm. Agora o app confirma com uma nova autenticação do Google (`DELETE /clientes/me` aceita `idToken` da MESMA conta); `conta_google` vem em `/clientes/me`.
+- **Vínculo do Google:** parou de vincular por e-mail (o e-mail do cadastro por CPF nunca é verificado → uma pessoa podia herdar a conta de outra). Quem já tem conta por CPF vincula o Google informando a senha dela (`/google/completar` com `senha`).
+- **Aprovação/crédito transacional:** `creditarVinculo` roda em transação com `SELECT ... FOR UPDATE` no vínculo e relê o saldo; aprovar/rejeitar solicitação é condicional ("só se ainda PENDENTE") — acaba o crédito em duplicidade por duplo clique. Verificado `$transaction` + `FOR UPDATE` no adaptador MariaDB.
+- **Datas no fuso de Brasília** (`utils/data.js`): o servidor roda em UTC, então "hoje" virava amanhã às 21h (campanha "Corte de Cabelo" gravou início 16/10 num cadastro de 15/10 21:31) e campanhas/licenças venciam 3 h antes da meia-noite. Agora: dia de calendário em Brasília, validade/vencimento valem até o fim do dia, início do mês do dashboard em BRT, validade no passado é recusada.
+- **Token do cliente invalidável** (`Cliente.token_valido_desde`): `authCliente` confere se a conta existe e se o token é posterior à última redefinição de senha.
+- **Anti-spam de solicitações:** um pedido pendente por loja e cupom fiscal não reutilizável.
+- **Validação de tipos** (`utils/validar.js`) em cadastro/login de cliente e empresa, PATCH da empresa, planos, campanhas, promoções: texto que chega como número/objeto virou 400 (antes, 500).
+- **Admin:** token de 8 h, `GET /admin/me`, sessão retomada ao recarregar (guardada só na aba, `sessionStorage`) e volta ao login quando o token vence.
+- **Painel Web:** sessão só é descartada em 401/403 (antes qualquer erro, até 5xx/429, deslogava a loja).
+- **Dependências:** `npm audit fix` → 0 vulnerabilidades (`proxy-addr` 2.0.8 era a crítica; o resto vinha do CLI do Prisma).
+- **Operação:** CORS aceita `localhost` só se `NODE_ENV` ≠ `production`; log de requisições não grava `/health` e apaga registros com mais de 90 dias; `seed-admin.js` lê a senha de `ADMIN_SENHA`; build de release **falha** sem `key.properties` (antes caía na chave de debug); `GoogleSignIn.signOut()` no "Sair da conta".
+- **Painel:** campanhas e promoções mostram o status real (`Ativa`/`Agendada`/`Vencida`/`Encerrada`, via `status_efetivo`); KPI "campanhas ativas" só conta as vigentes; "Reativar" some quando o prazo já passou.
+- **Cabeçalhos de segurança** dos painéis e do site: `deploy/htaccess-web.txt` e `deploy/htaccess-admin.txt` (+ `admin-robots.txt`, `noindex`) — anti-clickjacking, `nosniff`, HSTS, referrer/permissions policy.
+- **Testes automatizados** (`server/test`, `npm test`): datas, licença, validação e a lógica de cartões/campanhas (13 testes).
+- Lints dos três projetos zerados (`flutter analyze`: nenhum aviso).
+
+**Decisões que NÃO foram tomadas no código (precisam do responsável)**
+- **Cadastro livre de empresa sem prova de posse do CNPJ** (`/auth/empresa/registrar`): alguém pode registrar o CNPJ de outra empresa e bloqueá-la. Opções: exigir aprovação do admin antes de ativar, ou confirmar e-mail do domínio/CNPJ. Hoje o admin corrige pelo painel (`PATCH /admin/empresas/:id` troca CNPJ/e-mail/senha).
+- **Minificação (R8) do app** não foi ligada: precisa de teste em aparelho para não quebrar os plugins (câmera, armazenamento seguro, Google).
+- **Limite de tentativas depende de `CF-Connecting-IP`:** só é confiável se o servidor aceitar tráfego somente do Cloudflare (regra no Cloudflare/cPanel).
+- **MySQL:** TLS sem validar certificado (hospedagem compartilhada) e porta 3306 acessível de fora — conferir a lista de IPs liberados.
+- Campanhas de teste da Loja Teste ("Base", "BATON", "Corte de Cabelo") geram cartões reais para os clientes vinculados: encerrar antes de divulgar.
+
+**Publicação deste lote — feita em 2026-10-15** (banco, servidor, painel da Empresa, admin e `.htaccess`; falta só o app 1.0.2 na Play; `NODE_ENV=production` ainda não foi definido no cPanel, então o CORS de `localhost` segue aberto). Ordem usada (obrigatória em lotes com schema novo): 1) `prisma db push` (coluna `clientes.token_valido_desde`) **antes** do código novo; 2) enviar `server/src/` inteiro + `package.json`/`package-lock.json`; 3) "Run NPM Install" no Node.js App do cPanel (para `proxy-addr` 2.0.8) e, se quiser, definir `NODE_ENV=production`; 4) reiniciar o Passenger e conferir `/health`; 5) publicar `/app/` e o admin (builds novos) e os `.htaccess` de `deploy/`; 6) app 1.0.2 (código 3) na Play.

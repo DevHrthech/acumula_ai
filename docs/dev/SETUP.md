@@ -22,6 +22,8 @@ npm run dev             # node --watch src/index.js — reinicia sozinho a cada 
 
 Verifique que subiu: `curl http://localhost:3000/health` → `{"status":"ok"}`.
 
+Variáveis opcionais além do `.env.example`: `MAIL_MODE=console` (imprime os e-mails no log em vez de enviar — use ao testar a recuperação de senha localmente), `GOOGLE_CLIENT_ID` (sobrescreve o Web Client ID padrão em `src/utils/google.js`) e `GOOGLE_TOKENINFO_URL` (aponta para um servidor falso nos testes do login com Google). Os limites de requisição são por processo e por IP: se um teste local devolver 429, reinicie o servidor. Encerre servidores de teste **pela porta ou PID**, nunca com `taskkill` por nome de imagem (mata todos os `node.exe`).
+
 ### Alterando o schema do banco
 
 **Nunca rode `prisma db push`/`generate` no servidor de produção** — o schema-engine WASM do Prisma 7 trava por falta de memória no cPanel. O fluxo correto é sempre local:

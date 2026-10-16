@@ -31,8 +31,10 @@ O consumidor final, dono do app.
 | nome, senha_hash | |
 | cpf (unique) | login no app **e** usado pela empresa pra localizar/marcar na Web |
 | telefone | canal de contato |
-| email | opcional |
+| email | opcional — usado só para enviar o código de recuperação de senha |
 | notificacoes_push, notificacoes_email, login_biometrico | preferências (booleanas) — sem infraestrutura de envio de push/e-mail por trás ainda, mas os campos já persistem de verdade |
+| google_id (unique, nullable) | identificador estável (`sub`) da conta Google vinculada — login com Google (ver [dev/LOGIN_GOOGLE.md](dev/LOGIN_GOOGLE.md)) |
+| reset_codigo_hash, reset_expira_em, reset_tentativas | recuperação de senha: hash (bcrypt) do código de 6 dígitos enviado por e-mail, validade (15 min) e nº de tentativas erradas (bloqueia em 5). Nunca saem da API |
 | created_at | |
 
 ### `vinculos`
@@ -47,7 +49,7 @@ O "cartão fidelidade" — relação entre um cliente e uma empresa. Um cliente 
 | unique(cliente_id, empresa_id) | um cliente só tem 1 cartão por empresa — garantido a nível de banco |
 
 ### `campanhas`
-Promoção com validade própria, criada pela empresa. Sempre herda o `tipo_fidelidade` da empresa (sem coluna de tipo própria). Aprovação é automática — só `ATIVA`/`EXPIRADA`, sem estado de moderação. **A tela "Promoções" (web e mobile) é só outra vitrine desta mesma entidade, não um recurso separado** (ver [SPEC.md](SPEC.md) seção 14).
+Promoção com validade própria, criada pela empresa. Sempre herda o `tipo_fidelidade` da empresa (sem coluna de tipo própria). Aprovação é automática — só `ATIVA`/`EXPIRADA`, sem estado de moderação. **A campanha gera um cartão fidelidade próprio no app do cliente.** A tela "Promoções" é outra coisa: entidade `promocoes` (aviso/post sem meta nem cartão) — ver [SPEC.md](SPEC.md) seção 19.
 
 | Campo | Observação |
 |---|---|

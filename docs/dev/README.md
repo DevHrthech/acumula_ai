@@ -11,6 +11,9 @@ Este diretório reúne a documentação técnica formal do projeto, escrita para
 | **`API.md`** (este diretório) | Referência completa de todos os endpoints do `server/` | Integrar um cliente novo ou depurar uma chamada |
 | **`SETUP.md`** (este diretório) | Como rodar o projeto localmente (server/web/mobile) | Onboarding de um novo desenvolvedor |
 | **`DEPLOYMENT.md`** (este diretório) | Como publicar cada frente em produção, passo a passo | Fazer um deploy |
+| **`PLAY_STORE.md`** (este diretório) | Ficha da loja, declarações, checklist de publicação por responsável e riscos | Publicar/atualizar o app na Google Play |
+| **`PLAY_CONSOLE_PASSO_A_PASSO.md`** (este diretório) | Roteiro tela a tela do Play Console (conta pessoal nova): verificação, declarações, teste fechado, produção | Operar o Play Console |
+| **`LOGIN_GOOGLE.md`** (este diretório) | Como funciona o login com Google e como configurar o Google Cloud | Mexer no login social ou trocar credenciais |
 
 ## Visão geral em uma frase
 

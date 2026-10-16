@@ -53,6 +53,11 @@ CREATE TABLE clientes (
   notificacoes_push   BOOLEAN NOT NULL DEFAULT TRUE,
   notificacoes_email  BOOLEAN NOT NULL DEFAULT FALSE,
   login_biometrico    BOOLEAN NOT NULL DEFAULT FALSE,
+  google_id           VARCHAR(64) NULL UNIQUE,
+  reset_codigo_hash   VARCHAR(255) NULL,
+  reset_expira_em     TIMESTAMP NULL,
+  reset_tentativas    INT NOT NULL DEFAULT 0,
+  token_valido_desde  TIMESTAMP NULL, -- tokens emitidos antes disso são recusados (senha redefinida)
   created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -72,19 +77,35 @@ CREATE TABLE vinculos (
 
 -- Promoção com validade própria, criada pela empresa. Sempre herda o
 -- tipo_fidelidade da empresa (sem coluna de tipo própria). Aprovação é
--- automática — só ATIVA/EXPIRADA, sem estado de moderação. A tela
--- "Promoções" (web e mobile) é só outra vitrine desta mesma entidade,
--- não um recurso separado (ver docs/SPEC.md seção 14).
+-- automática — só ATIVA/EXPIRADA, sem estado de moderação. Cada campanha
+-- ativa vira um cartão fidelidade próprio no app. "Promoções" é outra
+-- entidade (tabela promocoes, abaixo) — ver docs/SPEC.md seção 19.
 CREATE TABLE campanhas (
   id             VARCHAR(36) PRIMARY KEY,
   empresa_id     VARCHAR(36) NOT NULL,
   nome           VARCHAR(150) NOT NULL,
   descricao      VARCHAR(255) NULL,
   meta           INT UNSIGNED NOT NULL,
+  data_inicio    DATE NULL, -- opcional; nulo/omitido = data do cadastro
   data_validade  DATE NOT NULL,
   status         ENUM('ATIVA', 'EXPIRADA') NOT NULL DEFAULT 'ATIVA',
   created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_campanhas_empresa FOREIGN KEY (empresa_id) REFERENCES empresas(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Promoção = só um aviso/post da empresa (aba "Promoções" do app). Sem meta,
+-- sem cartão fidelidade, sem marcações — quem faz isso é a campanha.
+CREATE TABLE promocoes (
+  id             VARCHAR(36) PRIMARY KEY,
+  empresa_id     VARCHAR(36) NOT NULL,
+  titulo         VARCHAR(150) NOT NULL,
+  descricao      VARCHAR(500) NULL,
+  data_inicio    DATE NULL, -- opcional; nulo/omitido = data do cadastro
+  data_validade  DATE NULL,  -- opcional; nulo = sem data limite
+  status         ENUM('ATIVA', 'EXPIRADA') NOT NULL DEFAULT 'ATIVA',
+  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_promocoes_empresa (empresa_id),
+  CONSTRAINT fk_promocoes_empresa FOREIGN KEY (empresa_id) REFERENCES empresas(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Só relevante para empresas com tipo_fidelidade = PONTOS: define quantos

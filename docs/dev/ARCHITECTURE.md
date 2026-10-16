@@ -80,6 +80,8 @@ Não existe um único sistema de login — são **três tokens JWT independentes
 
 Um token de um tipo nunca funciona nas rotas de outro tipo (o middleware rejeita com 401 se `payload.tipo` não bater). Todos expiram (7 dias para empresa/admin, 30 dias para cliente) e não há refresh token — expirado, é preciso logar de novo.
 
+**Persistência da sessão no painel da Empresa (`/app/`):** o token fica no `localStorage` do navegador (`acumulaai_empresa_token`) e, ao abrir o app, `main.dart` chama `EmpresaSession.restaurar()` (valida o token com `GET /empresas/me`). Se a API recusar, o token é descartado; se qualquer chamada autenticada voltar 401 durante o uso, `EmpresaApi.aoSessaoExpirar` limpa a sessão e leva ao login. O painel admin (`main_admin.dart`) ainda mantém a sessão só em memória.
+
 CORS libera explicitamente `acumulaai.com.br`, `admin.acumulaai.com.br` e qualquer `localhost:*` (dev local) — ver `server/src/index.js`.
 
 ## 5. Mecânica de fidelidade
@@ -105,3 +107,12 @@ Estas não são escolhas de design — são limitações reais do ambiente de ho
 - **`node_modules` em produção é um symlink** para fora do diretório raiz do FTP — checagens de "o pacote X está instalado?" via FTP dão falso-negativo.
 - **MySQL 5.7** (não 8.x) — evitar features mais recentes de JSON/CHECK constraints.
 - **Cloudflare cacheia agressivamente** os builds Flutter Web — um deploy sem purge de cache pode parecer "não aplicado" para o usuário.
+
+## 8. Peças adicionadas para a publicação na Play Store (2026-10)
+
+- **E-mail transacional:** `server/src/utils/mailer.js` envia pelo `sendmail` local da hospedagem (sem SMTP nem dependência). `MAIL_MODE=console` imprime em vez de enviar (só desenvolvimento). Usado na recuperação de senha.
+- **Recuperação de senha:** `POST /auth/cliente/esqueci-senha` e `/redefinir-senha` (código de 6 dígitos, hash bcrypt em `clientes.reset_*`, validade 15 min, 5 tentativas).
+- **Login com Google:** `server/src/utils/google.js` valida o ID token no `tokeninfo` do Google; coluna `clientes.google_id`; detalhes em [LOGIN_GOOGLE.md](LOGIN_GOOGLE.md).
+- **Imagens de marca:** binário em `server/uploads/<empresaId>/` (fora do git, **persistente entre deploys por FTP** — não apagar essa pasta), URL no MySQL; servidas por `express.static` em `/uploads`.
+- **Rate limits novos:** `limiteRecuperacao` (5 pedidos de código/h por IP); login e redefinição compartilham `limiteLogin` (10/15 min).
+- **Sanitização de cliente:** qualquer resposta com dados de cliente deve passar por `sanitizarCliente` (remove `senha_hash`, `reset_*`, `google_id`) — vale também para `solicitacoes.js`, que devolve o cliente às lojas.

@@ -27,6 +27,10 @@ Servidor: FTPS explícito, porta 21, IP `107.161.183.117`. As três contas compa
 5. **Sempre** valide depois do restart: `curl https://api.acumulaai.com.br/health` → `{"status":"ok"}`.
 6. Idealmente, teste o endpoint específico alterado com uma chamada real antes de considerar o deploy concluído (dado de teste descartável, sempre limpo depois).
 
+### Ordem quando o lote muda o schema do Prisma
+
+`prisma db push` **primeiro** (só adição de coluna/tabela, nunca `--force-reset`/`--accept-data-loss`), depois enviar `server/src/` (árvore inteira, incluindo `src/generated/prisma/`). Se `package.json`/`package-lock.json` mudaram, enviar também e rodar **"Run NPM Install"** no Node.js App do cPanel (o `node_modules` de produção é um symlink; por FTP não dá pra instalar). Depois reiniciar o Passenger e conferir `/health`. Defina `NODE_ENV=production` no Node.js App para fechar o CORS de `localhost`.
+
 ### ⚠️ Lição de um incidente real (registrado em SPEC.md seção 14)
 
 Um deploy parcial (só os arquivos "óbvios") deixou a API inteira fora do ar por ~30 min — faltava um módulo (`middleware/rateLimiters`) de uma leva de arquivos nunca totalmente sincronizada numa sessão anterior. `node_modules` em produção é um **symlink** para fora do diretório do FTP, então uma checagem de "o pacote X está instalado?" via FTP dá falso-negativo. Diagnóstico real só foi possível rodando `node src/index.js` direto no terminal do cPanel (mais confiável que caçar logs do Passenger). **Regra prática:** depois de qualquer sessão que alterou `server/src/` só localmente sem deployar, o próximo deploy deve ressincronizar a árvore inteira, não só os arquivos que "parecem" ter mudado.
@@ -38,6 +42,11 @@ Site estático puro (HTML/CSS, sem build step, sem framework JS) — vive na rai
 Deploy: envie o conteúdo de `landing/` direto pra raiz do doc-root da conta `web@acumulaai.com.br` (**não** para dentro de `app/`). Como é HTML/CSS puro, não tem passo de build — é FTP direto dos arquivos.
 
 ⚠️ Antes de publicar, confira que não sobrou nenhum placeholder visível no código (ex.: número de WhatsApp nos CTAs de `index.html`) — o texto do plano original marcava isso explicitamente como bloqueio de publicação.
+
+### Itens que persistem entre deploys (não apagar pelo FTP)
+- `server/uploads/` — imagens de marca enviadas pelas empresas (criada pela própria API).
+- `server/.env` — segredos de produção; nunca sobrescrever com o `.env` local.
+- O envio de e-mail (recuperação de senha) usa o `sendmail` da hospedagem — não depende de nada para fazer deploy.
 
 ## `web/` — painéis Flutter Web
 
@@ -55,6 +64,22 @@ Envie via FTPS para a conta do domínio correspondente:
 - Painel admin (`main_admin.dart`) → conta `admin@`, na raiz do doc-root do subdomínio (sem landing nesse domínio).
 
 No mínimo: `index.html`, `main.dart.js`, `flutter.js`, `flutter_bootstrap.js`, `flutter_service_worker.js`, `manifest.json`, `version.json`, `favicon.png`, `assets/**`. Os arquivos de `canvaskit/` e `icons/` só precisam ser reenviados se a versão do Flutter SDK mudou desde o último deploy (raramente).
+
+### Cabeçalhos de segurança dos painéis (`deploy/`)
+
+`deploy/htaccess-web.txt` → `.htaccess` da raiz da conta `web@` (vale para a landing e para `/app/`); `deploy/htaccess-admin.txt` → `.htaccess` da raiz da conta `admin@`; `deploy/admin-robots.txt` → `robots.txt` do admin. Os arquivos antigos do servidor só tinham o bloco de cache (continua dentro dos novos). Depois de enviar, confira com `curl -I` que os cabeçalhos aparecem e que o site responde 200 (um `.htaccess` com erro derruba o site com 500 — se acontecer, reenvie o antigo).
+
+### Passo obrigatório depois do `flutter build web`: carimbo de versão (cache busting)
+
+O Cloudflare impõe `Cache-Control: max-age=14400` (4 h) nos `.js` do domínio, ignorando o `.htaccess`, e o navegador do usuário respeita isso — então, sem este passo, quem visitou nas últimas horas **não vê o deploy novo**. O `index.html` é a única peça que nunca fica em cache, então ele passa a apontar para versões com carimbo. Rode dentro de `web/build/web/` antes de enviar (use `MSYS_NO_PATHCONV=1` no Git Bash ao passar `--base-href /app/`):
+
+```bash
+TS=$(date +%s)
+sed -i "s#<script src=\"flutter_bootstrap.js\" async>#<script src=\"flutter_bootstrap.js?v=$TS\" async>#" index.html
+sed -i "s#\"mainJsPath\":\"main.dart.js\"#\"mainJsPath\":\"main.dart.js?v=$TS\"#" flutter_bootstrap.js
+```
+
+Confira com `grep -c "v=$TS" index.html flutter_bootstrap.js` (deve dar 1 em cada). Vale para os dois apps (`/app/` e o admin). Com isso, um F5 normal já traz a versão nova.
 
 ### ⚠️ Três camadas de cache — leia antes de "isso não atualizou"
 
