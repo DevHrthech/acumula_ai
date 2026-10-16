@@ -212,6 +212,8 @@ model Cliente {
   /// Tokens de login emitidos antes deste instante são recusados (definido ao
   /// redefinir a senha). Nulo = nenhum token foi invalidado.
   token_valido_desde    DateTime? @db.Timestamp(0)
+  /// Foto de perfil opcional (arquivo em uploads/clientes/<id>/, ver routes/cliente.js).
+  foto_url              String?   @db.VarChar(255)
   created_at            DateTime  @default(now()) @db.Timestamp(0)
 
   vinculos              Vinculo[]

@@ -8,7 +8,11 @@ const { creditarVinculo } = require('../utils/fidelidade');
 const router = express.Router();
 
 function sanitizarCliente(cliente) {
-  const { senha_hash, reset_codigo_hash, reset_expira_em, reset_tentativas, google_id, ...resto } = cliente;
+  // O painel da loja não precisa (nem deve ver) a foto de perfil do cliente nem
+  // campos internos de sessão: a foto é só do app do cliente.
+  const {
+    senha_hash, reset_codigo_hash, reset_expira_em, reset_tentativas, token_valido_desde, foto_url, google_id, ...resto
+  } = cliente;
   return resto;
 }
 

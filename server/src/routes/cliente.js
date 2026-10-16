@@ -1,5 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const fs = require('fs/promises');
+const path = require('path');
 
 const prisma = require('../prisma');
 const authCliente = require('../middleware/authCliente');
@@ -9,6 +11,7 @@ const { campanhasVigentes, saldoCampanha } = require('../utils/fidelidade');
 const { hojeBrasilia } = require('../utils/data');
 const { verificarIdToken } = require('../utils/google');
 const { primeiroErroTexto } = require('../utils/validar');
+const { UPLOADS_DIR, detectarFormatoImagem, urlPublicaBase, removerArquivoAnterior } = require('../utils/imagem');
 
 const router = express.Router();
 
@@ -65,6 +68,58 @@ router.patch('/me', authCliente, asyncHandler(async (req, res) => {
   });
 
   return res.json(sanitizarCliente(cliente));
+}));
+
+// ---- Foto de perfil ---------------------------------------------------------
+// O app já reduz a foto (≈640px, JPEG) antes de enviar; o limite abaixo é só a
+// rede de segurança. Arquivo em uploads/clientes/<id>/, URL no MySQL.
+const TAMANHO_MAX_FOTO = 1024 * 1024;
+
+router.put(
+  '/me/foto',
+  authCliente,
+  express.raw({ type: ['image/png', 'image/jpeg'], limit: TAMANHO_MAX_FOTO }),
+  asyncHandler(async (req, res) => {
+    const corpo = req.body;
+    if (!Buffer.isBuffer(corpo) || corpo.length === 0) {
+      return res.status(400).json({ erro: 'Envie uma imagem PNG ou JPG no corpo da requisição.' });
+    }
+    const formato = detectarFormatoImagem(corpo);
+    if (!formato) {
+      return res.status(400).json({ erro: 'Formato inválido. Envie uma imagem PNG ou JPG.' });
+    }
+
+    const cliente = await prisma.cliente.findUnique({ where: { id: req.clienteId } });
+    if (!cliente) {
+      return res.status(404).json({ erro: 'Cliente não encontrado.' });
+    }
+
+    const subpasta = path.join('clientes', req.clienteId);
+    const pasta = path.join(UPLOADS_DIR, subpasta);
+    await fs.mkdir(pasta, { recursive: true });
+    const nomeArquivo = `foto-${Date.now()}.${formato}`;
+    await fs.writeFile(path.join(pasta, nomeArquivo), corpo);
+
+    const atualizado = await prisma.cliente.update({
+      where: { id: req.clienteId },
+      data: { foto_url: `${urlPublicaBase(req)}/uploads/clientes/${req.clienteId}/${nomeArquivo}` },
+    });
+    await removerArquivoAnterior(subpasta, cliente.foto_url);
+
+    return res.json(sanitizarCliente(atualizado));
+  }),
+);
+
+router.delete('/me/foto', authCliente, asyncHandler(async (req, res) => {
+  const cliente = await prisma.cliente.findUnique({ where: { id: req.clienteId } });
+  if (!cliente) {
+    return res.status(404).json({ erro: 'Cliente não encontrado.' });
+  }
+
+  const atualizado = await prisma.cliente.update({ where: { id: req.clienteId }, data: { foto_url: null } });
+  await removerArquivoAnterior(path.join('clientes', req.clienteId), cliente.foto_url);
+
+  return res.json(sanitizarCliente(atualizado));
 }));
 
 router.get('/me/vinculos', authCliente, asyncHandler(async (req, res) => {
@@ -363,6 +418,9 @@ router.delete('/me', authCliente, limiteLogin, asyncHandler(async (req, res) => 
     await tx.vinculo.deleteMany({ where: { cliente_id: cliente.id } });
     await tx.cliente.delete({ where: { id: cliente.id } });
   });
+
+  // A foto de perfil também é dado pessoal: sai junto com a conta.
+  await fs.rm(path.join(UPLOADS_DIR, 'clientes', cliente.id), { recursive: true, force: true });
 
   return res.json({ ok: true });
 }));
