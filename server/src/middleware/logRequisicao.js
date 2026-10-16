@@ -9,6 +9,9 @@ const prisma = require('../prisma');
 function logRequisicao(req, res, next) {
   const inicio = Date.now();
 
+  // O /health é chamado por monitoramento e não diz nada sobre uso por empresa.
+  if (req.path === '/health') return next();
+
   res.on('finish', () => {
     prisma.requisicaoApi
       .create({
@@ -30,4 +33,21 @@ function logRequisicao(req, res, next) {
   next();
 }
 
+// Retenção: o log não cresce pra sempre. Apaga o que tem mais de 90 dias ao
+// subir e uma vez por dia (timer "unref": não segura o processo vivo).
+const RETENCAO_DIAS = 90;
+
+function limparLogsAntigos() {
+  const limite = new Date(Date.now() - RETENCAO_DIAS * 24 * 60 * 60 * 1000);
+  return prisma.requisicaoApi
+    .deleteMany({ where: { created_at: { lt: limite } } })
+    .catch((err) => console.error('Falha ao limpar logs antigos:', err.message));
+}
+
+function agendarLimpezaDeLogs() {
+  limparLogsAntigos();
+  setInterval(limparLogsAntigos, 24 * 60 * 60 * 1000).unref();
+}
+
 module.exports = logRequisicao;
+module.exports.agendarLimpezaDeLogs = agendarLimpezaDeLogs;

@@ -1,15 +1,17 @@
 // Cria (ou atualiza a senha de) um admin interno da 2RL. Não existe rota
 // HTTP pública para isso — só este script, rodado manualmente:
-//   node scripts/seed-admin.js "Nome" email@2rl.com.br "senhaForte123"
+//   ADMIN_SENHA='senhaForte123' node scripts/seed-admin.js "Nome" email@2rl.com.br
+// (também aceita a senha como 3º argumento, mas isso fica no histórico do shell)
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const prisma = require('../src/prisma');
 
 async function main() {
-  const [nome, email, senha] = process.argv.slice(2);
+  const [nome, email, senhaArg] = process.argv.slice(2);
+  const senha = process.env.ADMIN_SENHA || senhaArg;
 
   if (!nome || !email || !senha) {
-    console.error('Uso: node scripts/seed-admin.js "Nome" email@2rl.com.br "senhaForte123"');
+    console.error('Uso: ADMIN_SENHA=... node scripts/seed-admin.js "Nome" email@2rl.com.br');
     process.exit(1);
   }
 

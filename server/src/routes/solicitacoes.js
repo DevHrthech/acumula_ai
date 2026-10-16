@@ -8,7 +8,7 @@ const { creditarVinculo } = require('../utils/fidelidade');
 const router = express.Router();
 
 function sanitizarCliente(cliente) {
-  const { senha_hash, ...resto } = cliente;
+  const { senha_hash, reset_codigo_hash, reset_expira_em, reset_tentativas, google_id, ...resto } = cliente;
   return resto;
 }
 
@@ -63,25 +63,39 @@ router.patch('/:id', authEmpresa, asyncHandler(async (req, res) => {
     return res.status(409).json({ erro: 'Esta solicitação já foi resolvida.' });
   }
 
+  // A troca de status é condicional ("só se ainda PENDENTE"): num duplo clique
+  // ou em duas abas, só uma das chamadas resolve a solicitação — a outra cai
+  // no 409 e não credita de novo.
+  const jaResolvida = () => res.status(409).json({ erro: 'Esta solicitação já foi resolvida.' });
+
   if (acao === 'rejeitar') {
-    const atualizada = await prisma.solicitacaoMarcacao.update({
-      where: { id: req.params.id },
+    const { count } = await prisma.solicitacaoMarcacao.updateMany({
+      where: { id: req.params.id, status: 'PENDENTE' },
       data: { status: 'REJEITADA', resolved_at: new Date() },
     });
-    return res.json({ id: atualizada.id, status: atualizada.status });
+    if (count === 0) return jaResolvida();
+    return res.json({ id: req.params.id, status: 'REJEITADA' });
   }
 
-  const resultado = await creditarVinculo(solicitacao.vinculo, solicitacao.vinculo.empresa);
-  const atualizada = await prisma.solicitacaoMarcacao.update({
-    where: { id: req.params.id },
-    data: { status: 'APROVADA', resolved_at: new Date() },
-  });
+  // Marcar como aprovada e creditar andam juntos na mesma transação: se o
+  // crédito falhar, a solicitação volta a ficar PENDENTE.
+  const resultado = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.solicitacaoMarcacao.updateMany({
+      where: { id: req.params.id, status: 'PENDENTE' },
+      data: { status: 'APROVADA', resolved_at: new Date() },
+    });
+    if (count === 0) return null;
+    return creditarVinculo(solicitacao.vinculo, solicitacao.vinculo.empresa, tx);
+  }, { timeout: 15000 });
+
+  if (!resultado) return jaResolvida();
 
   return res.json({
-    id: atualizada.id,
-    status: atualizada.status,
+    id: req.params.id,
+    status: 'APROVADA',
     saldoAtual: resultado.saldoAtual,
     recompensaLiberada: Boolean(resultado.resgate),
+    campanhasConcluidas: resultado.campanhasConcluidas,
   });
 }));
 

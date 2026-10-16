@@ -15,7 +15,7 @@ const HASH_MORTO = '$2b$12$yM5whqp/vY47JQrnKGy.jO0JMp8m2LLrKw4q3n5Bk.V8fta5MriZy
 router.post('/login', limiteLogin, async (req, res) => {
   const { email, senha } = req.body || {};
 
-  if (!email || !senha) {
+  if (!email || !senha || typeof email !== 'string' || typeof senha !== 'string' || senha.length > 200) {
     return res.status(400).json({ erro: 'Informe email e senha.' });
   }
 
@@ -30,7 +30,9 @@ router.post('/login', limiteLogin, async (req, res) => {
     }
 
     const token = jwt.sign({ sub: admin.id, tipo: 'admin' }, process.env.JWT_SECRET, {
-      expiresIn: '7d',
+      // Painel interno com acesso a todas as empresas: sessão curta (o painel
+      // guarda o token só na aba aberta).
+      expiresIn: '8h',
       algorithm: 'HS256',
     });
 

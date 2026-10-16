@@ -34,6 +34,17 @@ const limiteRegistro = rateLimit({
   message: { erro: 'Muitas tentativas de cadastro. Tente novamente mais tarde.' },
 });
 
+// Pedido de código de recuperação de senha: cada chamada pode disparar um
+// e-mail, então o limite é baixo pra não virar canal de spam.
+const limiteRecuperacao = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: chavePorIp,
+  message: { erro: 'Muitos pedidos de recuperação. Tente novamente mais tarde.' },
+});
+
 // Limite geral pra API inteira, como rede de segurança básica contra abuso/DoS.
 const limiteGeral = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -43,4 +54,4 @@ const limiteGeral = rateLimit({
   keyGenerator: chavePorIp,
 });
 
-module.exports = { limiteLogin, limiteRegistro, limiteGeral };
+module.exports = { limiteLogin, limiteRegistro, limiteRecuperacao, limiteGeral };

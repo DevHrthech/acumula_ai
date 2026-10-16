@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 
@@ -11,9 +12,11 @@ const adminMonitoramentoRoutes = require('./routes/adminMonitoramento');
 const authClienteRoutes = require('./routes/authCliente');
 const clienteRoutes = require('./routes/cliente');
 const campanhasRoutes = require('./routes/campanhas');
-const solicitacoesRoutes = require('./routes/solicitacoes');
+const promocoesRoutes = require('./routes/promocoes');
+const solicitacoesRoutes =require('./routes/solicitacoes');
 const relatorioRoutes = require('./routes/relatorio');
 const logRequisicao = require('./middleware/logRequisicao');
+const { agendarLimpezaDeLogs } = logRequisicao;
 const { limiteGeral } = require('./middleware/rateLimiters');
 
 const app = express();
@@ -35,7 +38,9 @@ app.set('trust proxy', 1); // atrás do Cloudflare — necessário pro rate limi
 const origensPermitidas = [
   'https://acumulaai.com.br',
   'https://admin.acumulaai.com.br',
-  /^http:\/\/localhost:\d+$/,
+  // localhost (desenvolvimento) só fora de produção — defina NODE_ENV=production
+  // no Node.js App do cPanel pra fechar essa porta.
+  ...(process.env.NODE_ENV === 'production' ? [] : [/^http:\/\/localhost:\d+$/]),
 ];
 
 app.use(cors({
@@ -46,6 +51,9 @@ app.use(cors({
     return callback(new Error('Origem não permitida pelo CORS.'));
   },
 }));
+// Imagens de marca enviadas pelas empresas (ver routes/empresa.js). Os nomes
+// levam timestamp, então cache longo é seguro.
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), { maxAge: '7d', index: false }));
 app.use(express.json({ limit: '100kb' })); // nenhuma rota hoje precisa de payload grande (sem upload de arquivo via JSON)
 app.use(limiteGeral);
 app.use(logRequisicao);
@@ -62,7 +70,8 @@ app.use('/admin/monitoramento', adminMonitoramentoRoutes);
 app.use('/auth/cliente', authClienteRoutes);
 app.use('/clientes', clienteRoutes);
 app.use('/empresas/me/campanhas', campanhasRoutes);
-app.use('/empresas/me/solicitacoes', solicitacoesRoutes);
+app.use('/empresas/me/promocoes', promocoesRoutes);
+app.use('/empresas/me/solicitacoes',solicitacoesRoutes);
 app.use('/empresas/me', relatorioRoutes);
 
 // Rede de segurança: qualquer erro que uma rota encaminhe via next(err)
@@ -83,4 +92,5 @@ app.use((err, req, res, next) => {
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`ACUMULAAI API rodando na porta ${port}`);
+  agendarLimpezaDeLogs();
 });

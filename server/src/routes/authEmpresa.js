@@ -6,6 +6,7 @@ const prisma = require('../prisma');
 const { gerarCodigoLojaUnico } = require('../utils/codigoLoja');
 const cnpjUtil = require('../utils/cnpj');
 const { limiteLogin, limiteRegistro } = require('../middleware/rateLimiters');
+const { primeiroErroTexto } = require('../utils/validar');
 
 const router = express.Router();
 
@@ -52,6 +53,17 @@ router.post('/registrar', limiteRegistro, async (req, res) => {
     });
   }
 
+  const erroTexto = primeiroErroTexto({
+    nome: [nome, { max: 150, obrigatorio: true }],
+    email: [email, { max: 150, obrigatorio: true }],
+    senha: [senha, { max: 200, obrigatorio: true }],
+    categoria: [categoria, { max: 100 }],
+    descricaoRecompensa: [descricaoRecompensa, { max: 255, obrigatorio: true }],
+  });
+  if (erroTexto) {
+    return res.status(400).json({ erro: erroTexto });
+  }
+
   if (!cnpjUtil.isValido(cnpj)) {
     return res.status(400).json({ erro: 'CNPJ inválido.' });
   }
@@ -70,16 +82,6 @@ router.post('/registrar', limiteRegistro, async (req, res) => {
 
   if (metaFidelidade !== undefined && (!Number.isInteger(metaFidelidade) || metaFidelidade < 1 || metaFidelidade > 1000)) {
     return res.status(400).json({ erro: 'metaFidelidade deve ser um inteiro entre 1 e 1000.' });
-  }
-
-  // Limites batendo com as colunas do banco (VARCHAR) — sem isso, um valor
-  // grande demais vira erro 500 genérico do MySQL em vez de um 400 claro.
-  const limitesTexto = { nome: 150, email: 150, categoria: 100, descricaoRecompensa: 255 };
-  for (const [campo, limite] of Object.entries(limitesTexto)) {
-    const valor = { nome, email, categoria, descricaoRecompensa }[campo];
-    if (valor && valor.length > limite) {
-      return res.status(400).json({ erro: `${campo} deve ter no máximo ${limite} caracteres.` });
-    }
   }
 
   try {
@@ -115,7 +117,7 @@ router.post('/registrar', limiteRegistro, async (req, res) => {
 router.post('/login', limiteLogin, async (req, res) => {
   const { email, senha } = req.body || {};
 
-  if (!email || !senha) {
+  if (!email || !senha || typeof email !== 'string' || typeof senha !== 'string' || senha.length > 200) {
     return res.status(400).json({ erro: 'Informe email e senha.' });
   }
 

@@ -3,6 +3,7 @@ const express = require('express');
 const prisma = require('../prisma');
 const authEmpresa = require('../middleware/authEmpresa');
 const asyncHandler = require('../utils/asyncHandler');
+const { hojeBrasilia } = require('../utils/data');
 
 const router = express.Router();
 
@@ -11,7 +12,7 @@ router.get('/clientes', authEmpresa, asyncHandler(async (req, res) => {
     where: { empresa_id: req.empresaId },
     include: {
       cliente: true,
-      _count: { select: { marcacoes: true, resgates: true } },
+      _count: { select: { marcacoes: { where: { campanha_id: null } }, resgates: true } },
     },
     orderBy: { data_vinculo: 'desc' },
   });
@@ -30,22 +31,29 @@ router.get('/clientes', authEmpresa, asyncHandler(async (req, res) => {
 }));
 
 router.get('/dashboard', authEmpresa, asyncHandler(async (req, res) => {
-  const inicioMes = new Date();
-  inicioMes.setDate(1);
-  inicioMes.setHours(0, 0, 0, 0);
+  // Primeiro dia do mês corrente em Brasília, à 00:00 BRT (= 03:00 UTC).
+  const inicioMes = new Date(`${hojeBrasilia().toISOString().slice(0, 7)}-01T03:00:00Z`);
 
   const [clientesAtivos, campanhasAtivas, marcacoesMes, resgatesMes, marcacoesRecentes, resgatesRecentes] =
     await Promise.all([
       prisma.vinculo.count({ where: { empresa_id: req.empresaId } }),
-      prisma.campanha.count({ where: { empresa_id: req.empresaId, status: 'ATIVA' } }),
+      // "Campanhas ativas" = ATIVA e dentro do prazo (início já chegou, fim não passou).
+      prisma.campanha.count({
+        where: {
+          empresa_id: req.empresaId,
+          status: 'ATIVA',
+          data_validade: { gte: hojeBrasilia() },
+          OR: [{ data_inicio: null }, { data_inicio: { lte: hojeBrasilia() } }],
+        },
+      }),
       prisma.marcacao.count({
-        where: { vinculo: { empresa_id: req.empresaId }, data_hora: { gte: inicioMes } },
+        where: { vinculo: { empresa_id: req.empresaId }, campanha_id: null, data_hora: { gte: inicioMes } },
       }),
       prisma.resgate.count({
         where: { vinculo: { empresa_id: req.empresaId }, data_hora: { gte: inicioMes } },
       }),
       prisma.marcacao.findMany({
-        where: { vinculo: { empresa_id: req.empresaId } },
+        where: { vinculo: { empresa_id: req.empresaId }, campanha_id: null },
         include: { vinculo: { include: { cliente: true } } },
         orderBy: { data_hora: 'desc' },
         take: 10,

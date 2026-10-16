@@ -75,6 +75,7 @@ model Empresa {
 
   vinculos              Vinculo[]
   campanhas             Campanha[]
+  promocoes             Promocao[]
   regras_pontuacao      RegraPontuacao[]
   licencas              Licenca[]
   contratos             Contrato[]
@@ -202,6 +203,15 @@ model Cliente {
   notificacoes_push     Boolean   @default(true)
   notificacoes_email    Boolean   @default(false)
   login_biometrico      Boolean   @default(false)
+  /// Identificador estável (claim "sub") da conta Google vinculada — login com Google.
+  google_id             String?   @unique @db.VarChar(64)
+  /// Recuperação de senha por código enviado ao e-mail (ver routes/authCliente.js).
+  reset_codigo_hash     String?   @db.VarChar(255)
+  reset_expira_em       DateTime? @db.Timestamp(0)
+  reset_tentativas      Int       @default(0)
+  /// Tokens de login emitidos antes deste instante são recusados (definido ao
+  /// redefinir a senha). Nulo = nenhum token foi invalidado.
+  token_valido_desde    DateTime? @db.Timestamp(0)
   created_at            DateTime  @default(now()) @db.Timestamp(0)
 
   vinculos              Vinculo[]
@@ -229,16 +239,21 @@ model Vinculo {
   @@map("vinculos")
 }
 
-/// Promoção com validade própria, criada pela empresa. Sempre herda o
-/// tipo_fidelidade da empresa (não tem campo de tipo próprio — ver
-/// docs/MECANICA_FIDELIDADE.md seção 2). Aprovação é automática: não há
-/// estado de moderação, só ATIVA/EXPIRADA.
+/// Campanha com meta e validade própria, criada pela empresa. Gera um
+/// cartão fidelidade próprio no app do cliente (um por campanha ativa),
+/// separado do cartão contínuo da loja. Sempre herda o tipo_fidelidade da
+/// empresa (não tem campo de tipo próprio — ver docs/MECANICA_FIDELIDADE.md
+/// seção 2). Aprovação é automática: não há estado de moderação, só
+/// ATIVA/EXPIRADA.
 model Campanha {
   id             String          @id @default(uuid()) @db.VarChar(36)
   empresa_id     String          @db.VarChar(36)
   nome           String          @db.VarChar(150)
   descricao      String?         @db.VarChar(255)
   meta           Int             @db.UnsignedInt
+  /// Início opcional. Nulo = vale desde o cadastro (created_at); no POST, se
+  /// a empresa não informar, grava a data do cadastro.
+  data_inicio    DateTime?       @db.Date
   data_validade  DateTime        @db.Date
   status         StatusCampanha  @default(ATIVA)
   created_at     DateTime        @default(now()) @db.Timestamp(0)
@@ -249,6 +264,27 @@ model Campanha {
 
   @@index([empresa_id])
   @@map("campanhas")
+}
+
+/// Promoção = só um aviso/post da empresa para os clientes vinculados
+/// (aba "Promoções" do app). Não tem meta, não gera cartão fidelidade e não
+/// recebe marcações — quem faz isso é a Campanha.
+model Promocao {
+  id             String          @id @default(uuid()) @db.VarChar(36)
+  empresa_id     String          @db.VarChar(36)
+  titulo         String          @db.VarChar(150)
+  descricao      String?         @db.VarChar(500)
+  /// Período de validade: início opcional (nulo = desde o cadastro) e fim
+  /// opcional (nulo = sem data limite).
+  data_inicio    DateTime?       @db.Date
+  data_validade  DateTime?       @db.Date
+  status         StatusCampanha  @default(ATIVA)
+  created_at     DateTime        @default(now()) @db.Timestamp(0)
+
+  empresa        Empresa         @relation(fields: [empresa_id], references: [id])
+
+  @@index([empresa_id])
+  @@map("promocoes")
 }
 
 /// Só relevante para empresas com tipo_fidelidade = PONTOS: define quantos

@@ -5,3 +5,5 @@ dist/
 
 /src/generated/prisma
 /.deploy_tmp/
+
+/uploads/
