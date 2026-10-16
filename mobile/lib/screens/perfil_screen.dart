@@ -5,6 +5,7 @@ import '../services/cliente_api.dart';
 import '../state/cliente_session.dart';
 import '../theme/theme_provider.dart';
 import '../widgets/avatar_cliente.dart';
+import 'ajustar_foto_screen.dart';
 import 'login_screen.dart';
 
 class PerfilScreen extends StatefulWidget {
@@ -46,18 +47,23 @@ class _PerfilScreenState extends State<PerfilScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final session = ClienteSessionScope.of(context);
     try {
-      // Reduz na origem: foto de câmera tem vários MB e o avatar é pequeno.
-      final arquivo = await _picker.pickImage(source: origem, maxWidth: 640, maxHeight: 640, imageQuality: 85);
+      // Mantém boa resolução (1600 px) para o cliente poder ampliar na tela de
+      // ajuste; o recorte final é reduzido a 640 px.
+      final arquivo = await _picker.pickImage(source: origem, maxWidth: 1600, maxHeight: 1600, imageQuality: 90);
       if (arquivo == null) return; // cancelou
       final bytes = await arquivo.readAsBytes();
-      final tipo = _tipoDaImagem(bytes);
-      if (tipo == null) {
+      if (_tipoDaImagem(bytes) == null) {
         messenger.showSnackBar(const SnackBar(content: Text('Formato não suportado. Use uma foto JPG ou PNG.')));
         return;
       }
       if (!mounted) return;
+      // O cliente posiciona a foto dentro do círculo antes de enviar.
+      final recortada = await Navigator.of(context).push<Uint8List>(
+        MaterialPageRoute(builder: (_) => AjustarFotoScreen(imagem: bytes)),
+      );
+      if (recortada == null || !mounted) return; // cancelou o ajuste
       setState(() => _enviandoFoto = true);
-      await session.trocarFoto(bytes, tipo);
+      await session.trocarFoto(recortada, 'image/jpeg');
       messenger.showSnackBar(const SnackBar(content: Text('Foto atualizada!')));
     } on ClienteApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.mensagem)));

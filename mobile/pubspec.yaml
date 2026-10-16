@@ -43,6 +43,8 @@ dependencies:
   local_auth: ^3.0.2
   local_auth_android: ^2.3.0
   image_picker: ^1.2.4
+  crop_your_image: ^2.0.1
+  image: ^4.12.0
 
 dev_dependencies:
   flutter_test:
