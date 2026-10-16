@@ -20,38 +20,49 @@ class AvatarCliente extends StatelessWidget {
     this.borda,
   });
 
-  Widget _inicial() {
+  static const double _espessuraBorda = 3;
+
+  Widget _inicial(double lado) {
     final texto = nome.trim();
-    if (texto.isEmpty) return Icon(Icons.person, color: corTexto, size: tamanho * 0.55);
+    if (texto.isEmpty) return Icon(Icons.person, color: corTexto, size: lado * 0.55);
     return Text(
       texto[0].toUpperCase(),
-      style: TextStyle(fontSize: tamanho * 0.44, fontWeight: FontWeight.bold, color: corTexto),
+      style: TextStyle(fontSize: lado * 0.44, fontWeight: FontWeight.bold, color: corTexto),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final temFoto = fotoUrl != null && fotoUrl!.isNotEmpty;
+    final espessura = borda == null ? 0.0 : _espessuraBorda;
+    final interno = tamanho - 2 * espessura;
+    // O anel (borda) é o fundo do círculo de fora e a foto é cortada num
+    // ClipOval do tamanho EXATO do miolo. Antes a imagem tinha o tamanho do
+    // círculo inteiro dentro de um Container com borda: sobrava um pedaço reto
+    // em cada lado e a foto parecia um quadrado de cantos arredondados.
     return Container(
       width: tamanho,
       height: tamanho,
-      clipBehavior: Clip.antiAlias,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: fundo,
-        border: borda == null ? null : Border.all(color: borda!, width: 3),
+      padding: EdgeInsets.all(espessura),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: borda ?? fundo),
+      child: ClipOval(
+        child: Container(
+          width: interno,
+          height: interno,
+          color: fundo,
+          alignment: Alignment.center,
+          child: temFoto
+              ? Image.network(
+                  fotoUrl!,
+                  width: interno,
+                  height: interno,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => _inicial(interno),
+                  loadingBuilder: (context, child, progresso) => progresso == null ? child : _inicial(interno),
+                )
+              : _inicial(interno),
+        ),
       ),
-      child: temFoto
-          ? Image.network(
-              fotoUrl!,
-              width: tamanho,
-              height: tamanho,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _inicial(),
-              loadingBuilder: (context, child, progresso) => progresso == null ? child : _inicial(),
-            )
-          : _inicial(),
     );
   }
 }
