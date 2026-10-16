@@ -3,7 +3,8 @@ import 'package:http/http.dart' as http;
 
 class AdminApiException implements Exception {
   final String mensagem;
-  AdminApiException(this.mensagem);
+  final int? status;
+  AdminApiException(this.mensagem, {this.status});
   @override
   String toString() => mensagem;
 }
@@ -13,6 +14,10 @@ class AdminApiException implements Exception {
 /// não há ambiente de staging separado ainda.
 class AdminApi {
   static const String baseUrl = 'https://api.acumulaai.com.br';
+
+  /// Chamado quando uma requisição autenticada volta 401 (token vencido): o
+  /// painel limpa a sessão e volta pro login.
+  static void Function()? aoSessaoExpirar;
 
   final String? token;
 
@@ -29,7 +34,8 @@ class AdminApi {
     final erro = (corpo is Map && corpo['erro'] != null)
         ? corpo['erro'] as String
         : 'Erro inesperado (${res.statusCode}).';
-    throw AdminApiException(erro);
+    if (res.statusCode == 401 && token != null) aoSessaoExpirar?.call();
+    throw AdminApiException(erro, status: res.statusCode);
   }
 
   Future<Map<String, dynamic>> login(String email, String senha) async {
@@ -38,6 +44,11 @@ class AdminApi {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'senha': senha}),
     );
+    return await _handle(res) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> me() async {
+    final res = await http.get(Uri.parse('$baseUrl/admin/me'), headers: _headers);
     return await _handle(res) as Map<String, dynamic>;
   }
 
@@ -60,6 +71,15 @@ class AdminApi {
     return await _handle(res) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> atualizarEmpresa(String id, Map<String, dynamic> campos) async {
+    final res = await http.patch(
+      Uri.parse('$baseUrl/admin/empresas/$id'),
+      headers: _headers,
+      body: jsonEncode(campos),
+    );
+    return await _handle(res) as Map<String, dynamic>;
+  }
+
   Future<List<dynamic>> listarPlanos() async {
     final res = await http.get(Uri.parse('$baseUrl/admin/planos'), headers: _headers);
     return await _handle(res) as List<dynamic>;
@@ -74,6 +94,55 @@ class AdminApi {
       Uri.parse('$baseUrl/admin/planos'),
       headers: _headers,
       body: jsonEncode({'nome': nome, 'valorMensal': valorMensal, 'descricao': descricao}),
+    );
+    return await _handle(res) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> atualizarPlano({
+    required String id,
+    String? nome,
+    double? valorMensal,
+    String? descricao,
+    bool? ativo,
+  }) async {
+    final res = await http.patch(
+      Uri.parse('$baseUrl/admin/planos/$id'),
+      headers: _headers,
+      body: jsonEncode({
+        'nome': ?nome,
+        'valorMensal': ?valorMensal,
+        'descricao': ?descricao,
+        'ativo': ?ativo,
+      }),
+    );
+    return await _handle(res) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> criarEmpresa({
+    required String nome,
+    required String cnpj,
+    required String email,
+    required String senha,
+    required String descricaoRecompensa,
+    String? categoria,
+    String tipoFidelidade = 'MARCACOES',
+    int metaFidelidade = 10,
+    String? empresaPaiId,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/admin/empresas'),
+      headers: _headers,
+      body: jsonEncode({
+        'nome': nome,
+        'cnpj': cnpj,
+        'email': email,
+        'senha': senha,
+        'descricaoRecompensa': descricaoRecompensa,
+        'categoria': ?categoria,
+        'tipoFidelidade': tipoFidelidade,
+        'metaFidelidade': metaFidelidade,
+        'empresaPaiId': ?empresaPaiId,
+      }),
     );
     return await _handle(res) as Map<String, dynamic>;
   }
@@ -107,7 +176,7 @@ class AdminApi {
       Uri.parse('$baseUrl/admin/licencas/$licencaId'),
       headers: _headers,
       body: jsonEncode({
-        if (status != null) 'status': status,
+        'status': ?status,
         if (dataVencimento != null) 'dataVencimento': dataVencimento.toIso8601String(),
       }),
     );
@@ -118,7 +187,7 @@ class AdminApi {
     final res = await http.post(
       Uri.parse('$baseUrl/admin/empresas/$empresaId/contratos'),
       headers: _headers,
-      body: jsonEncode({if (licencaId != null) 'licencaId': licencaId}),
+      body: jsonEncode({'licencaId': ?licencaId}),
     );
     return await _handle(res) as Map<String, dynamic>;
   }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../services/empresa_api.dart';
+import '../utils/armazenamento_sessao.dart';
 
 /// Sessão de autenticação da Empresa logada — token JWT + dados retornados
-/// pela API. Vive em memória (some com o refresh da página, igual ao
-/// AdminSession do painel interno).
+/// pela API. O token também fica no localStorage do navegador, então a
+/// sessão sobrevive a refresh e a fechar/reabrir a aba, até o JWT expirar
+/// (7 dias).
 class EmpresaSession extends ChangeNotifier {
   String? token;
   Map<String, dynamic>? empresa;
@@ -16,7 +18,32 @@ class EmpresaSession extends ChangeNotifier {
     final resultado = await EmpresaApi().login(email, senha);
     token = resultado['token'] as String;
     empresa = resultado['empresa'] as Map<String, dynamic>;
+    ArmazenamentoSessao.salvar(token!);
     notifyListeners();
+  }
+
+  /// Tenta retomar a sessão guardada no navegador. Devolve true se havia
+  /// token e a API ainda o aceita. Token rejeitado (expirado/licença
+  /// bloqueada) é descartado; falha de rede mantém o token guardado, mas não
+  /// autentica agora.
+  Future<bool> restaurar() async {
+    final guardado = ArmazenamentoSessao.ler();
+    if (guardado == null || guardado.isEmpty) return false;
+    try {
+      final dados = await EmpresaApi(token: guardado).me();
+      token = guardado;
+      empresa = dados;
+      notifyListeners();
+      return true;
+    } on EmpresaApiException catch (e) {
+      // Só descarta o token quando a API o recusou (401 expirado/inválido ou
+      // 403 licença bloqueada). Erro 5xx ou limite de requisições (429) é
+      // instabilidade passageira: manter o token evita deslogar a loja à toa.
+      if (e.status == 401 || e.status == 403) ArmazenamentoSessao.limpar();
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
   void atualizarEmpresa(Map<String, dynamic> dados) {
@@ -25,6 +52,7 @@ class EmpresaSession extends ChangeNotifier {
   }
 
   void logout() {
+    ArmazenamentoSessao.limpar();
     token = null;
     empresa = null;
     notifyListeners();

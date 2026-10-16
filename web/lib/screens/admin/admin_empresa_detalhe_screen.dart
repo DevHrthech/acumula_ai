@@ -31,7 +31,8 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
       final planos = await widget.session.api.listarPlanos();
       setState(() {
         _empresa = empresa;
-        _planos = planos;
+        // Só planos ativos podem ser usados em novas licenças.
+        _planos = planos.where((p) => (p as Map<String, dynamic>)['ativo'] != false).toList();
       });
     } on AdminApiException catch (e) {
       setState(() => _erro = e.mensagem);
@@ -55,6 +56,7 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
 
     final confirmado = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Nova licença'),
@@ -162,12 +164,14 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
       _mostrarErro(e.mensagem);
       return;
     }
+    if (!mounted) return;
 
     final opcoes = empresas.where((e) => e['id'] != widget.empresaId).toList();
     String? selecionadoId = _empresa!['empresa_pai']?['id'] as String?;
 
     final confirmado = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Definir empresa-matriz'),
@@ -204,6 +208,102 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
       _mostrarErro(e.mensagem);
     } finally {
       if (mounted) setState(() => _salvandoMatriz = false);
+    }
+  }
+
+  String _formatarData(String? iso) {
+    final d = iso == null ? null : DateTime.tryParse(iso)?.toLocal();
+    if (d == null) return '—';
+    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+  }
+
+  Future<void> _editarCadastro() async {
+    final e = _empresa!;
+    final nome = TextEditingController(text: e['nome'] as String);
+    final cnpj = TextEditingController(text: e['cnpj'] as String);
+    final email = TextEditingController(text: e['email'] as String);
+    final categoria = TextEditingController(text: e['categoria'] as String? ?? '');
+    final recompensa = TextEditingController(text: e['descricao_recompensa'] as String? ?? '');
+    final meta = TextEditingController(text: '${e['meta_fidelidade']}');
+    final novaSenha = TextEditingController();
+
+    final confirmado = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar cadastro da empresa'),
+        content: SizedBox(
+          width: 460,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(controller: nome, decoration: const InputDecoration(labelText: 'Nome da empresa')),
+                TextField(controller: cnpj, decoration: const InputDecoration(labelText: 'CNPJ')),
+                TextField(
+                  controller: email,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'E-mail de acesso'),
+                ),
+                TextField(controller: categoria, decoration: const InputDecoration(labelText: 'Categoria')),
+                TextField(controller: recompensa, decoration: const InputDecoration(labelText: 'Recompensa')),
+                TextField(
+                  controller: meta,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: e['tipo_fidelidade'] == 'PONTOS' ? 'Meta de pontos' : 'Meta de marcações',
+                    helperText: 'A mecânica (${e['tipo_fidelidade'] == 'PONTOS' ? 'pontos' : 'marcações'}) é fixa após o cadastro.',
+                  ),
+                ),
+                TextField(
+                  controller: novaSenha,
+                  decoration: const InputDecoration(
+                    labelText: 'Nova senha de acesso (opcional)',
+                    helperText: 'Deixe em branco para manter a atual. Mínimo 8 caracteres.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Salvar')),
+        ],
+      ),
+    );
+    if (confirmado != true) return;
+
+    final metaNum = int.tryParse(meta.text.trim());
+    if (metaNum == null) {
+      _mostrarErro('A meta deve ser um número inteiro.');
+      return;
+    }
+
+    // Só envia o que mudou.
+    final campos = <String, dynamic>{};
+    if (nome.text.trim() != e['nome']) campos['nome'] = nome.text.trim();
+    if (cnpj.text.trim() != e['cnpj']) campos['cnpj'] = cnpj.text.trim();
+    if (email.text.trim() != e['email']) campos['email'] = email.text.trim();
+    if (categoria.text.trim() != (e['categoria'] as String? ?? '')) {
+      campos['categoria'] = categoria.text.trim().isEmpty ? null : categoria.text.trim();
+    }
+    if (recompensa.text.trim() != (e['descricao_recompensa'] as String? ?? '')) {
+      campos['descricaoRecompensa'] = recompensa.text.trim();
+    }
+    if (metaNum != e['meta_fidelidade']) campos['metaFidelidade'] = metaNum;
+    if (novaSenha.text.isNotEmpty) campos['novaSenha'] = novaSenha.text;
+
+    if (campos.isEmpty) return;
+
+    try {
+      await widget.session.api.atualizarEmpresa(widget.empresaId, campos);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cadastro atualizado.')));
+      _carregar();
+    } on AdminApiException catch (err) {
+      _mostrarErro(err.mensagem);
     }
   }
 
@@ -246,16 +346,34 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Cadastro', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textDark)),
+              TextButton.icon(
+                onPressed: _editarCadastro,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Editar cadastro'),
+              ),
+            ],
+          ),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text('Nome: ${_empresa!['nome']}'),
                   Text('CNPJ: ${_empresa!['cnpj']}'),
-                  Text('E-mail: ${_empresa!['email']}'),
+                  Text('E-mail de acesso: ${_empresa!['email']}'),
+                  Text('Categoria: ${_empresa!['categoria'] ?? '—'}'),
                   Text('Código da loja: ${_empresa!['codigo_loja']}'),
-                  Text('Mecânica: ${_empresa!['tipo_fidelidade']}'),
+                  Text(
+                    'Mecânica: ${_empresa!['tipo_fidelidade'] == 'PONTOS' ? 'Pontos' : 'Marcações'}'
+                    ' · Meta: ${_empresa!['meta_fidelidade']}',
+                  ),
+                  Text('Recompensa: ${_empresa!['descricao_recompensa'] ?? '—'}'),
+                  Text('Cadastrada em: ${_formatarData(_empresa!['created_at'] as String?)}'),
                 ],
               ),
             ),

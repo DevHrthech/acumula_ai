@@ -3,6 +3,7 @@ import '../state/empresa_config.dart';
 import '../state/empresa_session.dart';
 import '../services/empresa_api.dart';
 import '../theme/app_colors.dart';
+import '../utils/vigencia.dart';
 import '../widgets/web_sidebar.dart';
 
 /// Painel administrativo (web) — listagem e gestão das campanhas de
@@ -162,8 +163,8 @@ class _WebCampanhasScreenState extends State<WebCampanhasScreen> {
   }
 
   Widget _buildKpiRow() {
-    final ativas = _campanhas.where((c) => c['status'] == 'ATIVA').length;
-    final encerradas = _campanhas.where((c) => c['status'] == 'EXPIRADA').length;
+    final ativas = _campanhas.where((c) => statusEfetivo(c as Map<String, dynamic>) == 'ATIVA').length;
+    final encerradas = _campanhas.where((c) => estaEncerrada(statusEfetivo(c as Map<String, dynamic>))).length;
     final cards = [
       _StatCard(icon: Icons.campaign_outlined, label: 'CAMPANHAS ATIVAS', value: '$ativas'),
       _StatCard(icon: Icons.event_busy_outlined, label: 'CAMPANHAS ENCERRADAS', value: '$encerradas'),
@@ -228,7 +229,7 @@ class _WebCampanhasScreenState extends State<WebCampanhasScreen> {
                     child: const Row(children: [
                       _HeaderCell('CAMPANHA', flex: 3),
                       _HeaderCell('META', flex: 2),
-                      _HeaderCell('VALIDADE', flex: 2),
+                      _HeaderCell('PERÍODO', flex: 2),
                       _HeaderCell('STATUS', flex: 1),
                       _HeaderCell('AÇÕES', flex: 1),
                     ]),
@@ -314,10 +315,18 @@ class _CampanhaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ativa = campanha['status'] == 'ATIVA';
+    final efetivo = statusEfetivo(campanha);
+    final apresentacao = apresentarStatus(efetivo);
+    // "Encerrar" só faz sentido enquanto está gravada como ATIVA; "Reativar"
+    // não adianta se o prazo já passou (ficaria Vencida de novo).
+    final gravadaAtiva = campanha['status'] == 'ATIVA';
+    final vencida = campanha['vencida'] == true;
     final unidade = tipo == TipoFidelidade.marcacoes ? 'marcações' : 'pontos';
-    final validade = DateTime.parse(campanha['data_validade'] as String);
-    final validadeStr = '${validade.day.toString().padLeft(2, '0')}/${validade.month.toString().padLeft(2, '0')}/${validade.year}';
+    // Sem data de início gravada (campanhas antigas), vale desde o cadastro.
+    final inicioStr = campanha['data_inicio'] != null
+        ? formatarData(campanha['data_inicio'] as String)
+        : formatarData(campanha['created_at'] as String, instante: true);
+    final validadeStr = '$inicioStr a ${formatarData(campanha['data_validade'] as String)}';
 
     return Container(
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFEFEFF2)))),
@@ -351,22 +360,22 @@ class _CampanhaRow extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: ativa ? AppColors.successBg : AppColors.surface,
+                color: apresentacao.fundo,
                 borderRadius: BorderRadius.circular(99),
-                border: ativa ? null : Border.all(color: AppColors.border),
+                border: apresentacao.fundo == AppColors.surface ? Border.all(color: AppColors.border) : null,
               ),
               child: Text(
-                ativa ? 'Ativa' : 'Encerrada',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: ativa ? AppColors.successText : AppColors.textMuted),
+                apresentacao.texto,
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: apresentacao.cor),
               ),
             ),
           ),
           Expanded(
             flex: 1,
             child: IconButton(
-              onPressed: onAlternarStatus,
-              icon: Icon(ativa ? Icons.pause_circle_outline : Icons.play_circle_outline, size: 20),
-              tooltip: ativa ? 'Encerrar' : 'Reativar',
+              onPressed: (!gravadaAtiva && vencida) ? null : onAlternarStatus,
+              icon: Icon(gravadaAtiva ? Icons.pause_circle_outline : Icons.play_circle_outline, size: 20),
+              tooltip: (!gravadaAtiva && vencida) ? 'Prazo vencido — crie uma nova campanha' : (gravadaAtiva ? 'Encerrar' : 'Reativar'),
               color: AppColors.primary,
             ),
           ),

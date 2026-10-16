@@ -25,6 +25,7 @@ class EmpresaConfig extends ChangeNotifier {
   int metaFidelidade = 10;
   String descricaoRecompensa = '';
 
+  String codigoLoja = '';
   String? iconeUrl;
   String? logoQrCodeUrl;
   String? logoPromocaoUrl;
@@ -65,6 +66,7 @@ class EmpresaConfig extends ChangeNotifier {
         : TipoFidelidade.marcacoes;
     metaFidelidade = dados['meta_fidelidade'] as int;
     descricaoRecompensa = dados['descricao_recompensa'] as String;
+    codigoLoja = (dados['codigo_loja'] as String?) ?? codigoLoja;
     iconeUrl = dados['icone_url'] as String?;
     logoQrCodeUrl = dados['logo_qrcode_url'] as String?;
     logoPromocaoUrl = dados['logo_promocao_url'] as String?;

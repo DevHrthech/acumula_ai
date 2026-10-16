@@ -1,5 +1,11 @@
+import 'dart:ui' as ui;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:qr_flutter/qr_flutter.dart';
 import '../services/empresa_api.dart';
+import '../utils/baixar_arquivo.dart';
 import '../state/empresa_config.dart';
 import '../state/empresa_session.dart';
 import '../theme/app_colors.dart';
@@ -89,6 +95,123 @@ class _WebConfiguracoesScreenState extends State<WebConfiguracoesScreen> {
   }
 
   bool _salvando = false;
+  String? _imagemEmEnvio;
+
+  static const _tiposImagem = {
+    'icone': 'Ícone',
+    'logo-qrcode': 'Logo para o QR Code',
+    'logo-promocao': 'Logo para promoções',
+  };
+
+  void _aviso(String msg, {bool erro = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: erro ? Colors.red : null),
+    );
+  }
+
+  Future<void> _escolherImagem(String tipo) async {
+    final config = EmpresaConfigScope.of(context);
+    final session = EmpresaSessionScope.of(context);
+    final arquivo = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: const ['png', 'jpg', 'jpeg'],
+    );
+    if (arquivo == null) return;
+    final bytes = await arquivo.readAsBytes();
+    if (bytes.length > 2 * 1024 * 1024) {
+      _aviso('A imagem passa de 2 MB. Escolha um arquivo menor.', erro: true);
+      return;
+    }
+    final ext = arquivo.name.toLowerCase().split('.').last;
+    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+
+    setState(() => _imagemEmEnvio = tipo);
+    try {
+      final atualizado = await session.api.enviarImagem(tipo, bytes, contentType);
+      config.carregarDe(atualizado);
+      _aviso('${_tiposImagem[tipo]} atualizado.');
+    } on EmpresaApiException catch (e) {
+      _aviso(e.mensagem, erro: true);
+    } catch (_) {
+      _aviso('Não foi possível enviar a imagem. Tente novamente.', erro: true);
+    } finally {
+      if (mounted) setState(() => _imagemEmEnvio = null);
+    }
+  }
+
+  Future<void> _removerImagem(String tipo) async {
+    final config = EmpresaConfigScope.of(context);
+    final session = EmpresaSessionScope.of(context);
+    setState(() => _imagemEmEnvio = tipo);
+    try {
+      final atualizado = await session.api.removerImagem(tipo);
+      config.carregarDe(atualizado);
+    } on EmpresaApiException catch (e) {
+      _aviso(e.mensagem, erro: true);
+    } catch (_) {
+      _aviso('Não foi possível remover a imagem.', erro: true);
+    } finally {
+      if (mounted) setState(() => _imagemEmEnvio = null);
+    }
+  }
+
+  Future<void> _copiarCodigo(String codigo) async {
+    await Clipboard.setData(ClipboardData(text: codigo));
+    _aviso('Código copiado.');
+  }
+
+  Future<void> _baixarQr(EmpresaConfig config) async {
+    try {
+      ui.Image? logo;
+      final urlLogo = config.logoQrCodeUrl;
+      if (urlLogo != null) {
+        try {
+          final res = await http.get(Uri.parse(urlLogo));
+          if (res.statusCode == 200) logo = await decodeImageFromList(res.bodyBytes);
+        } catch (_) {
+          // Sem o logo, o QR Code ainda é gerado normalmente.
+        }
+      }
+      final painter = QrPainter(
+        data: config.codigoLoja,
+        version: QrVersions.auto,
+        errorCorrectionLevel: QrErrorCorrectLevel.H,
+        eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black),
+        dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Colors.black),
+      );
+      // Lado do PNG final; o logo ocupa uma caixa branca central (~28% do
+      // lado), dentro do que a correção de erro nível H consegue recuperar.
+      const lado = 1024.0;
+      final gravador = ui.PictureRecorder();
+      final canvas = Canvas(gravador);
+      canvas.drawRect(const Rect.fromLTWH(0, 0, lado, lado), Paint()..color = Colors.white);
+      painter.paint(canvas, const Size(lado, lado));
+      if (logo != null) {
+        const caixa = lado * 0.28;
+        const margem = caixa * 0.08;
+        final centro = const Offset(lado / 2, lado / 2);
+        final retangulo = Rect.fromCenter(center: centro, width: caixa, height: caixa);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(retangulo, const Radius.circular(caixa * 0.1)),
+          Paint()..color = Colors.white,
+        );
+        paintImage(
+          canvas: canvas,
+          rect: retangulo.deflate(margem),
+          image: logo,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        );
+      }
+      final imagem = await gravador.endRecording().toImage(lado.toInt(), lado.toInt());
+      final dados = await imagem.toByteData(format: ui.ImageByteFormat.png);
+      if (dados == null) throw Exception('falha ao gerar a imagem');
+      baixarArquivo(dados.buffer.asUint8List(), 'qrcode-${config.codigoLoja}.png', 'image/png');
+    } catch (_) {
+      _aviso('Não foi possível gerar o QR Code.', erro: true);
+    }
+  }
 
   Future<void> _salvar() async {
     final config = EmpresaConfigScope.of(context);
@@ -235,28 +358,36 @@ class _WebConfiguracoesScreenState extends State<WebConfiguracoesScreen> {
                   children: [
                     Expanded(
                       child: _uploadBox(
+                        tipo: 'icone',
                         label: 'Ícone',
                         hint: 'PNG, fundo transparente, quadrado (mín. 512×512px)',
+                        url: EmpresaConfigScope.of(context).iconeUrl,
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: _uploadBox(
+                        tipo: 'logo-qrcode',
                         label: 'Logo para o QR Code',
                         hint: 'PNG, quadrado (mín. 512×512px)',
+                        url: EmpresaConfigScope.of(context).logoQrCodeUrl,
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: _uploadBox(
+                        tipo: 'logo-promocao',
                         label: 'Logo para promoções',
                         hint: 'PNG ou JPG, paisagem (mín. 1200×630px)',
+                        url: EmpresaConfigScope.of(context).logoPromocaoUrl,
                       ),
                     ),
                   ],
                 ),
               ],
             ),
+            const SizedBox(height: 20),
+            _qrCard(EmpresaConfigScope.of(context)),
             const SizedBox(height: 20),
             _card(
               title: 'Cores da loja',
@@ -802,7 +933,13 @@ class _WebConfiguracoesScreenState extends State<WebConfiguracoesScreen> {
     );
   }
 
-  Widget _uploadBox({required String label, required String hint}) {
+  Widget _uploadBox({
+    required String tipo,
+    required String label,
+    required String hint,
+    required String? url,
+  }) {
+    final enviando = _imagemEmEnvio == tipo;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -810,39 +947,151 @@ class _WebConfiguracoesScreenState extends State<WebConfiguracoesScreen> {
             style: const TextStyle(
                 fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textDark)),
         const SizedBox(height: 6),
-        Container(
-          width: double.infinity,
-          height: 120,
-          decoration: BoxDecoration(
-            color: AppColors.inputBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: enviando ? null : () => _escolherImagem(tipo),
+          child: Container(
+            width: double.infinity,
+            height: 120,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: AppColors.inputBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: enviando
+                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                : url != null
+                    ? Image.network(
+                        url,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const Center(
+                          child: Icon(Icons.broken_image_outlined, color: AppColors.textHint),
+                        ),
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: Icon(Icons.cloud_upload_outlined,
+                                color: AppColors.primary, size: 18),
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              hint,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 10.5, color: AppColors.textHint),
+                            ),
+                          ),
+                        ],
+                      ),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+        ),
+        if (url != null && !enviando)
+          Row(
+            children: [
+              TextButton(onPressed: () => _escolherImagem(tipo), child: const Text('Trocar')),
+              TextButton(
+                onPressed: () => _removerImagem(tipo),
+                child: const Text('Remover', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _qrCard(EmpresaConfig config) {
+    final codigo = config.codigoLoja;
+    return _card(
+      title: 'QR Code e código da loja',
+      subtitle: 'O cliente escaneia o QR Code ou digita o código no app para se vincular à sua loja.',
+      children: [
+        if (codigo.isEmpty)
+          const Text('Código da loja indisponível.', style: TextStyle(color: AppColors.textMuted))
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 36,
-                height: 36,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(18),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
                 ),
-                child: Icon(Icons.cloud_upload_outlined,
-                    color: AppColors.primary, size: 18),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    QrImageView(
+                      data: codigo,
+                      size: 180,
+                      errorCorrectionLevel: QrErrorCorrectLevel.H,
+                      backgroundColor: Colors.white,
+                    ),
+                    if (config.logoQrCodeUrl != null)
+                      Container(
+                        width: 48,
+                        height: 48,
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Image.network(
+                          config.logoQrCodeUrl!,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  hint,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 10.5, color: AppColors.textHint),
+              const SizedBox(width: 24),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Código da loja',
+                        style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                    const SizedBox(height: 4),
+                    SelectableText(
+                      codigo,
+                      style: const TextStyle(
+                          fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 2, color: AppColors.textDark),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () => _copiarCodigo(codigo),
+                          style: OutlinedButton.styleFrom(foregroundColor: AppColors.primary, side: BorderSide(color: AppColors.primary)),
+                          icon: const Icon(Icons.copy, size: 16),
+                          label: const Text('Copiar código'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _baixarQr(config),
+                          style: OutlinedButton.styleFrom(foregroundColor: AppColors.primary, side: BorderSide(color: AppColors.primary)),
+                          icon: const Icon(Icons.download, size: 16),
+                          label: const Text('Baixar QR Code (PNG)'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
       ],
     );
   }

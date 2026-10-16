@@ -40,6 +40,7 @@ class _AdminPlanosScreenState extends State<AdminPlanosScreen> {
 
     final confirmado = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Novo plano'),
         content: Column(
@@ -85,6 +86,69 @@ class _AdminPlanosScreenState extends State<AdminPlanosScreen> {
     }
   }
 
+  Future<void> _editarPlano(Map<String, dynamic> plano) async {
+    final nomeController = TextEditingController(text: plano['nome'] as String);
+    final valorController = TextEditingController(text: '${plano['valor_mensal']}');
+    final descricaoController = TextEditingController(text: plano['descricao'] as String? ?? '');
+
+    final confirmado = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar plano'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nomeController, decoration: const InputDecoration(labelText: 'Nome')),
+            TextField(
+              controller: valorController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Valor mensal (R\$)'),
+            ),
+            TextField(controller: descricaoController, decoration: const InputDecoration(labelText: 'Descrição (opcional)')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Salvar')),
+        ],
+      ),
+    );
+    if (confirmado != true) return;
+
+    final valor = double.tryParse(valorController.text.replaceAll(',', '.'));
+    if (nomeController.text.trim().isEmpty || valor == null) {
+      _erroSnack('Informe nome e valor válidos.');
+      return;
+    }
+    await _atualizar(
+      plano['id'] as String,
+      nome: nomeController.text.trim(),
+      valorMensal: valor,
+      descricao: descricaoController.text.trim(),
+    );
+  }
+
+  Future<void> _atualizar(String id, {String? nome, double? valorMensal, String? descricao, bool? ativo}) async {
+    try {
+      await widget.session.api.atualizarPlano(
+        id: id,
+        nome: nome,
+        valorMensal: valorMensal,
+        descricao: descricao,
+        ativo: ativo,
+      );
+      _carregar();
+    } on AdminApiException catch (e) {
+      _erroSnack(e.mensagem);
+    }
+  }
+
+  void _erroSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
@@ -109,14 +173,30 @@ class _AdminPlanosScreenState extends State<AdminPlanosScreen> {
                   ? Center(child: Text('Nenhum plano cadastrado.', style: TextStyle(color: theme.textMuted)))
                   : ListView.separated(
                       itemCount: _planos!.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, i) {
                         final p = _planos![i] as Map<String, dynamic>;
+                        final ativo = p['ativo'] != false;
                         return Card(
                           child: ListTile(
-                            title: Text(p['nome'] as String),
+                            onTap: () => _editarPlano(p),
+                            title: Text(ativo ? p['nome'] as String : '${p['nome']} (desativado)'),
                             subtitle: Text(p['descricao'] as String? ?? ''),
-                            trailing: Text('R\$ ${p['valor_mensal']}/mês', style: TextStyle(color: theme.primary, fontWeight: FontWeight.bold)),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('R\$ ${p['valor_mensal']}/mês',
+                                    style: TextStyle(color: theme.primary, fontWeight: FontWeight.bold)),
+                                const SizedBox(width: 12),
+                                Tooltip(
+                                  message: ativo ? 'Ativo — desligue para não oferecer em novas licenças' : 'Desativado — ligue para voltar a oferecer',
+                                  child: Switch(
+                                    value: ativo,
+                                    onChanged: (v) => _atualizar(p['id'] as String, ativo: v),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       },

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import '../state/empresa_config.dart';
 import '../state/empresa_session.dart';
 import '../services/empresa_api.dart';
 import '../theme/app_colors.dart';
 import '../widgets/web_sidebar.dart';
 
-/// Cria a mesma entidade "Campanha" que a tela de Cadastro de Campanha
-/// (ver docs/SPEC.md seção 14) — só com o enquadramento visual de "oferta
-/// rápida" (preview de card, sem os campos avançados de mecânica).
+/// Publica uma Promoção: um aviso/post que aparece na aba Promoções do app
+/// dos clientes vinculados. Não tem meta e não gera cartão fidelidade (isso é
+/// a Campanha, na tela "Cadastrar Campanha").
 class WebPostarPromoScreen extends StatefulWidget {
   final ValueChanged<AdminSection> onSelect;
   const WebPostarPromoScreen({super.key, required this.onSelect});
@@ -19,7 +18,7 @@ class WebPostarPromoScreen extends StatefulWidget {
 class _WebPostarPromoScreenState extends State<WebPostarPromoScreen> {
   final _titulo = TextEditingController();
   final _descricao = TextEditingController();
-  final _meta = TextEditingController();
+  DateTime? _inicio; // opcional: sem data, vale a do cadastro
   DateTime? _validade;
   bool _salvando = false;
   String? _erro;
@@ -28,7 +27,6 @@ class _WebPostarPromoScreenState extends State<WebPostarPromoScreen> {
   void dispose() {
     _titulo.dispose();
     _descricao.dispose();
-    _meta.dispose();
     super.dispose();
   }
 
@@ -42,23 +40,26 @@ class _WebPostarPromoScreenState extends State<WebPostarPromoScreen> {
     if (picked != null) setState(() => _validade = picked);
   }
 
-  String get _metaLabel {
-    final tipo = EmpresaConfigScope.of(context).tipoFidelidade;
-    return tipo == TipoFidelidade.marcacoes ? 'Marcações' : 'Pontos';
+  Future<void> _selecionarInicio() async {
+    final hoje = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _inicio ?? hoje,
+      firstDate: DateTime(hoje.year, hoje.month, hoje.day),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+    );
+    if (picked != null) setState(() => _inicio = picked);
   }
+
+  String _fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   Future<void> _publicar() async {
     if (_titulo.text.trim().isEmpty || _descricao.text.trim().isEmpty) {
       setState(() => _erro = 'Preencha título e descrição.');
       return;
     }
-    final meta = int.tryParse(_meta.text.trim());
-    if (meta == null || meta < 1) {
-      setState(() => _erro = 'Meta deve ser um número inteiro maior que zero.');
-      return;
-    }
-    if (_validade == null) {
-      setState(() => _erro = 'Selecione a validade.');
+    if (_inicio != null && _validade != null && _inicio!.isAfter(_validade!)) {
+      setState(() => _erro = 'O início não pode ser depois do fim da validade.');
       return;
     }
 
@@ -68,11 +69,11 @@ class _WebPostarPromoScreenState extends State<WebPostarPromoScreen> {
     });
     try {
       final session = EmpresaSessionScope.of(context);
-      await session.api.criarCampanha(
-        nome: _titulo.text.trim(),
+      await session.api.criarPromocao(
+        titulo: _titulo.text.trim(),
         descricao: _descricao.text.trim(),
-        meta: meta,
-        dataValidade: _validade!.toIso8601String(),
+        dataValidade: _validade?.toIso8601String(),
+        dataInicio: _inicio?.toIso8601String(),
       );
       if (!mounted) return;
       widget.onSelect(AdminSection.promocoes);
@@ -147,7 +148,7 @@ class _WebPostarPromoScreenState extends State<WebPostarPromoScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text('Postar Nova Promoção', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textDark)),
-                    Text('Publique uma oferta rápida no app dos clientes', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                    Text('Aviso que aparece na aba Promoções do app (não gera cartão fidelidade)', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
                   ],
                 ),
               ),
@@ -163,23 +164,43 @@ class _WebPostarPromoScreenState extends State<WebPostarPromoScreen> {
             child: TextField(controller: _descricao, maxLines: 4, decoration: _input('Descreva a oferta e as regras...'), onChanged: (_) => setState(() {})),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _Field(
-                  label: 'Meta de $_metaLabel *',
-                  child: TextField(controller: _meta, keyboardType: TextInputType.number, decoration: _input('Ex: 10'), onChanged: (_) => setState(() {})),
+          _Field(
+            label: 'Início (opcional)',
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: _selecionarInicio,
+                    borderRadius: BorderRadius.circular(10),
+                    child: InputDecorator(
+                      decoration: _input('Sem data: vale a data do cadastro'),
+                      child: Text(
+                        _inicio == null ? '' : _fmt(_inicio!),
+                        style: const TextStyle(fontSize: 13, color: AppColors.textDark),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _Field(
-                  label: 'Validade *',
+                if (_inicio != null)
+                  IconButton(
+                    tooltip: 'Usar a data do cadastro',
+                    onPressed: () => setState(() => _inicio = null),
+                    icon: const Icon(Icons.close, size: 18),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _Field(
+            label: 'Fim da validade (opcional)',
+            child: Row(
+              children: [
+                Expanded(
                   child: InkWell(
                     onTap: _selecionarValidade,
                     borderRadius: BorderRadius.circular(10),
                     child: InputDecorator(
-                      decoration: _input('Selecione a data'),
+                      decoration: _input('Sem data limite'),
                       child: Text(
                         _validade == null ? '' : '${_validade!.day.toString().padLeft(2, '0')}/${_validade!.month.toString().padLeft(2, '0')}/${_validade!.year}',
                         style: const TextStyle(fontSize: 13, color: AppColors.textDark),
@@ -187,8 +208,14 @@ class _WebPostarPromoScreenState extends State<WebPostarPromoScreen> {
                     ),
                   ),
                 ),
-              ),
-            ],
+                if (_validade != null)
+                  IconButton(
+                    tooltip: 'Remover validade',
+                    onPressed: () => setState(() => _validade = null),
+                    icon: const Icon(Icons.close, size: 18),
+                  ),
+              ],
+            ),
           ),
           if (_erro != null) ...[
             const SizedBox(height: 16),
@@ -260,8 +287,21 @@ class _WebPostarPromoScreenState extends State<WebPostarPromoScreen> {
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                   child: Container(
                     height: 120,
-                    decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.accent, const Color(0xFFFFB300)])),
-                    child: const Center(child: Text('🏷️', style: TextStyle(fontSize: 44))),
+                    decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.primary, AppColors.primaryDark])),
+                    child: Stack(
+                      children: [
+                        const Center(child: Icon(Icons.campaign_outlined, color: Colors.white70, size: 44)),
+                        Positioned(
+                          top: 10,
+                          left: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(color: AppColors.accent, borderRadius: BorderRadius.circular(99)),
+                            child: const Text('PROMOÇÃO', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.textDark, letterSpacing: 0.6)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 Padding(
@@ -289,8 +329,8 @@ class _WebPostarPromoScreenState extends State<WebPostarPromoScreen> {
                           const SizedBox(width: 4),
                           Text(
                             _validade == null
-                                ? 'Selecione a validade'
-                                : 'Válido até ${_validade!.day.toString().padLeft(2, '0')}/${_validade!.month.toString().padLeft(2, '0')}/${_validade!.year}',
+                                ? (_inicio == null ? 'Sem data limite' : 'A partir de ${_fmt(_inicio!)}')
+                                : (_inicio == null ? 'Válido até ${_fmt(_validade!)}' : 'De ${_fmt(_inicio!)} até ${_fmt(_validade!)}'),
                             style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
                           ),
                         ],

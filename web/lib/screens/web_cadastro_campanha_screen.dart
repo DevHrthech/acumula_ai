@@ -18,6 +18,7 @@ class _WebCadastroCampanhaScreenState extends State<WebCadastroCampanhaScreen> {
   final _nome = TextEditingController();
   final _descricao = TextEditingController();
   final _meta = TextEditingController();
+  DateTime? _dataInicio; // opcional: sem data, vale a do cadastro
   DateTime? _dataValidade;
   bool _salvando = false;
   String? _erro;
@@ -42,6 +43,19 @@ class _WebCadastroCampanhaScreenState extends State<WebCadastroCampanhaScreen> {
     }
   }
 
+  Future<void> _selecionarInicio() async {
+    final hoje = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dataInicio ?? hoje,
+      firstDate: DateTime(hoje.year, hoje.month, hoje.day),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+    );
+    if (picked != null) setState(() => _dataInicio = picked);
+  }
+
+  String _fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
   String get _metaLabel {
     final tipo = EmpresaConfigScope.of(context).tipoFidelidade;
     return tipo == TipoFidelidade.marcacoes ? 'Marcações' : 'Pontos';
@@ -58,6 +72,10 @@ class _WebCadastroCampanhaScreenState extends State<WebCadastroCampanhaScreen> {
       setState(() => _erro = 'Meta deve ser um número inteiro maior que zero.');
       return;
     }
+    if (_dataInicio != null && _dataInicio!.isAfter(_dataValidade!)) {
+      setState(() => _erro = 'O início não pode ser depois da validade.');
+      return;
+    }
 
     setState(() {
       _salvando = true;
@@ -70,6 +88,7 @@ class _WebCadastroCampanhaScreenState extends State<WebCadastroCampanhaScreen> {
         descricao: _descricao.text.trim(),
         meta: meta,
         dataValidade: _dataValidade!.toIso8601String(),
+        dataInicio: _dataInicio?.toIso8601String(),
       );
       if (!mounted) return;
       widget.onSelect(AdminSection.campanhas);
@@ -213,6 +232,33 @@ class _WebCadastroCampanhaScreenState extends State<WebCadastroCampanhaScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 16),
+            _Field(
+              label: 'Início (opcional)',
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: _selecionarInicio,
+                      borderRadius: BorderRadius.circular(10),
+                      child: InputDecorator(
+                        decoration: _inputDecoration('Sem data: vale a data do cadastro'),
+                        child: Text(
+                          _dataInicio == null ? '' : _fmt(_dataInicio!),
+                          style: const TextStyle(fontSize: 13, color: AppColors.textDark),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_dataInicio != null)
+                    IconButton(
+                      tooltip: 'Usar a data do cadastro',
+                      onPressed: () => setState(() => _dataInicio = null),
+                      icon: const Icon(Icons.close, size: 18),
+                    ),
+                ],
+              ),
             ),
             if (_erro != null) ...[
               const SizedBox(height: 16),

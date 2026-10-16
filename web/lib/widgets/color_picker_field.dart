@@ -25,6 +25,7 @@ class ColorPickerField extends StatelessWidget {
   Future<void> _abrirSeletor(BuildContext context) async {
     final resultado = await showDialog<Color>(
       context: context,
+      barrierDismissible: false,
       builder: (_) => _ColorPickerDialog(corInicial: color),
     );
     if (resultado != null) onChanged(resultado);
