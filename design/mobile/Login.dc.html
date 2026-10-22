@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Work+Sans:wght@400;500;600;700&display=swap');
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: var(--primary, #2856E0); text-decoration: none; }
+    a:hover { color: var(--primary-hover, #1d3fae); text-decoration: underline; }
+  </style>
+</helmet>
+<div style="--primary:{{accent}}; --primary-soft:color-mix(in oklch, var(--primary) 10%, white); --bg:oklch(97% 0.006 250); --surface:oklch(100% 0 0); --border:oklch(89% 0.008 250); --text:oklch(20% 0.02 255); --text-muted:oklch(52% 0.014 255); width:390px; min-height:844px; background:var(--bg); font-family:'Work Sans',system-ui,sans-serif; color:var(--text); display:flex; flex-direction:column; padding:32px 24px;">
+
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:28px;">
+
+    <div style="display:flex; flex-direction:column; align-items:center; gap:10px;">
+      <div style="width:56px; height:56px; border-radius:16px; background:var(--primary); display:flex; align-items:center; justify-content:center;">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+      </div>
+      <span style="font-family:'Sora',sans-serif; font-weight:700; font-size:19px;">ACUMULAAI</span>
+      <span style="font-size:13px; color:var(--text-muted);">Seu cartão fidelidade digital</span>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:14px;">
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="font-size:13px; font-weight:600;">CPF</label>
+        <input type="text" value="123.456.789-00" style="height:48px; border-radius:12px; border:1px solid var(--border); padding:0 14px; font-size:14px; font-family:inherit; color:var(--text); background:#fff;" />
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="font-size:13px; font-weight:600;">Senha</label>
+        <input type="text" value="••••••••••" style="height:48px; border-radius:12px; border:1px solid var(--border); padding:0 14px; font-size:14px; font-family:inherit; color:var(--text); background:#fff; letter-spacing:2px;" />
+      </div>
+      <div style="display:flex; justify-content:flex-end;">
+        <a href="#" style="font-size:12.5px; font-weight:600;">Esqueci minha senha</a>
+      </div>
+    </div>
+
+    <button style="height:50px; border:none; border-radius:12px; background:var(--primary); color:#fff; font-family:inherit; font-weight:600; font-size:15px; cursor:pointer;">Entrar</button>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:16px; align-items:center;">
+    <div style="height:1px; width:100%; background:var(--border);"></div>
+    <p style="margin:0; font-size:13.5px; color:var(--text-muted);">Não tem conta? <a href="#" style="font-weight:700;">Criar conta</a></p>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#2856E0","options":["#2856E0","#0F766E","#7C3AED","#DC2626"]}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#2856E0' };
+  }
+}
+</script>
+</body>
+</html>

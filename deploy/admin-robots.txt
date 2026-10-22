@@ -1,0 +1,3 @@
+# Enviar para a raiz do admin.acumulaai.com.br com o nome "robots.txt".
+User-agent: *
+Disallow: /

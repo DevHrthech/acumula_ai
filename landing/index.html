@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACUMULAAI — Cartão fidelidade digital para o seu negócio</title>
+<meta name="description" content="ACUMULAAI é o cartão fidelidade digital para pequenas e médias empresas: acabe com o carimbo de papel, fidelize clientes com marcações ou pontos configuráveis e acompanhe tudo em um painel próprio, com a identidade visual da sua marca.">
+<link rel="canonical" href="https://acumulaai.com.br/">
+
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:site_name" content="ACUMULAAI">
+<meta property="og:title" content="ACUMULAAI — Cartão fidelidade digital para o seu negócio">
+<meta property="og:description" content="Substitua o cartão de papel por um programa de fidelidade digital, com identidade visual da sua marca e marcação de compras em segundos.">
+<meta property="og:url" content="https://acumulaai.com.br/">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="ACUMULAAI — Cartão fidelidade digital para o seu negócio">
+<meta name="twitter:description" content="Substitua o cartão de papel por um programa de fidelidade digital, com identidade visual da sua marca e marcação de compras em segundos.">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "ACUMULAAI",
+  "url": "https://acumulaai.com.br/",
+  "legalName": "HR THECH LTDA",
+  "taxID": "49.905.063/0001-86",
+  "email": "privacidade@acumulaai.com.br",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Av. Goiânia, 1114, Quadra 23, Lote 09, Loja 07",
+    "addressLocality": "Hidrolândia",
+    "addressRegion": "GO",
+    "postalCode": "75340-000",
+    "addressCountry": "BR"
+  }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "ACUMULAAI",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web, Android, iOS",
+  "description": "Sistema de fidelização digital (cartão fidelidade digital) para empresas fidelizarem seus clientes finais, com marcações ou pontos configuráveis por loja.",
+  "offers": {
+    "@type": "Offer",
+    "availability": "https://schema.org/InStock"
+  }
+}
+</script>
+
+<style>
+  :root {
+    --primary: #5B0A8F;
+    --primary-dark: #38055e;
+    --accent: #FFC107;
+    --text-dark: #1A1A1A;
+    --text-muted: #6b6070;
+    --bg: #f7f5fa;
+    --card: #ffffff;
+    --border: #e6e0ec;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text-dark);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+  }
+  a { color: var(--primary); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+
+  header.top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    max-width: 1040px;
+    margin: 0 auto;
+  }
+  .logo {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--primary);
+    text-decoration: none;
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--accent); -webkit-text-stroke: 0.6px var(--primary-dark); }
+  .nav-cta {
+    display: inline-block;
+    border: 1.5px solid var(--primary);
+    color: var(--primary);
+    padding: 8px 18px;
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .nav-cta:hover { background: var(--primary); color: #fff; }
+
+  .hero {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #fff;
+    padding: 64px 24px 80px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: clamp(28px, 4.5vw, 44px);
+    margin: 0 0 16px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .hero p.lead {
+    max-width: 620px;
+    margin: 0 auto 32px;
+    font-size: 17px;
+    opacity: 0.92;
+  }
+  .hero-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block;
+    padding: 14px 26px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 15px;
+    text-decoration: none;
+  }
+  .btn-accent { background: var(--accent); color: #2b2100; }
+  .btn-accent:hover { background: #ffd24d; }
+  .btn-outline { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,0.7); }
+  .btn-outline:hover { background: rgba(255,255,255,0.12); }
+
+  main section { padding: 64px 24px; }
+  h2.section-title {
+    text-align: center;
+    font-size: clamp(22px, 3vw, 30px);
+    margin: 0 0 8px;
+    color: var(--primary);
+    font-weight: 800;
+  }
+  p.section-sub {
+    text-align: center;
+    color: var(--text-muted);
+    max-width: 560px;
+    margin: 0 auto 40px;
+  }
+
+  .problema { background: var(--card); }
+  .problema .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .problema .item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+  }
+  .problema .item .emoji { font-size: 28px; margin-bottom: 10px; display: block; }
+  .problema .item h3 { margin: 0 0 6px; font-size: 16px; color: var(--text-dark); }
+  .problema .item p { margin: 0; font-size: 14px; color: var(--text-muted); }
+
+  .como-funciona { background: var(--bg); }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 28px;
+    max-width: 960px;
+    margin: 0 auto;
+    counter-reset: step;
+  }
+  .step {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 28px 24px;
+    box-shadow: 0 6px 20px rgba(91,10,143,0.06);
+    position: relative;
+  }
+  .step .num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    margin-bottom: 14px;
+  }
+  .step h3 { margin: 0 0 8px; font-size: 16px; }
+  .step p { margin: 0; font-size: 14px; color: var(--text-muted); }
+
+  .diferenciais { background: var(--card); }
+  .dif-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 24px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .dif-grid .card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+  }
+  .dif-grid .card h3 {
+    margin: 0 0 8px;
+    font-size: 15.5px;
+    color: var(--primary);
+  }
+  .dif-grid .card p { margin: 0; font-size: 14px; color: var(--text-muted); }
+
+  .para-quem { background: var(--bg); text-align: center; }
+  .para-quem .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  .para-quem .tags span {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 14px;
+    color: var(--text-dark);
+  }
+
+  .cta-final {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #fff;
+    text-align: center;
+  }
+  .cta-final h2 { color: #fff; }
+  .cta-final p.section-sub { color: rgba(255,255,255,0.85); }
+  .cta-final .hero-actions { margin-top: 24px; }
+
+  footer.site {
+    background: #1A1023;
+    color: rgba(255,255,255,0.7);
+    padding: 40px 24px;
+    font-size: 13px;
+  }
+  footer.site .wrap {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  footer.site a { color: rgba(255,255,255,0.85); }
+  footer.site .legal { max-width: 460px; color: rgba(255,255,255,0.55); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="logo" href="/">ACUMULA<span>AI</span></a>
+  <a class="nav-cta" href="/app/">Entrar</a>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <h1>O cartão fidelidade digital da sua loja, sem papel e sem carimbo perdido</h1>
+    <p class="lead">O ACUMULAAI digitaliza o programa de fidelidade do seu negócio: você define a regra (marcações ou pontos), personaliza com a cor e a logo da sua marca, e acompanha tudo em um painel simples — enquanto seus clientes acompanham o progresso pelo próprio celular.</p>
+    <div class="hero-actions">
+      <a class="btn btn-accent" href="https://wa.me/5562984999122?text=Ol%C3%A1%2C%20quero%20saber%20mais%20sobre%20o%20ACUMULAAI" target="_blank" rel="noopener">Falar no WhatsApp</a>
+      <a class="btn btn-outline" href="/app/">Já sou cliente → Entrar</a>
+    </div>
+  </div>
+</section>
+
+<main>
+  <section class="problema">
+    <div class="wrap">
+      <h2 class="section-title">O carimbo de papel ficou pra trás</h2>
+      <p class="section-sub">Cartão fidelidade físico é fácil de perder, fácil de falsificar e difícil de acompanhar — tanto para o cliente quanto para quem gerencia a loja.</p>
+      <div class="grid">
+        <div class="item">
+          <span class="emoji">🧾</span>
+          <h3>Se perde, se rasga</h3>
+          <p>O cliente esquece o cartão em casa ou simplesmente perde — e perde junto o progresso que já tinha.</p>
+        </div>
+        <div class="item">
+          <span class="emoji">✍️</span>
+          <h3>Fácil de falsificar</h3>
+          <p>Carimbo e caneta não garantem nada: qualquer um pode preencher um cartão sem ter comprado nada.</p>
+        </div>
+        <div class="item">
+          <span class="emoji">📋</span>
+          <h3>Zero controle pra empresa</h3>
+          <p>Sem dado nenhum sobre quantos clientes estão fidelizados, quantas recompensas foram entregues ou quem está perto de resgatar.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="como-funciona">
+    <div class="wrap">
+      <h2 class="section-title">Como funciona</h2>
+      <p class="section-sub">Do cadastro da sua empresa até o cliente resgatando a recompensa, em 3 passos.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="num">1</div>
+          <h3>Configure o programa</h3>
+          <p>Escolha a mecânica de fidelidade (marcações fixas ou pontos acumulados), a recompensa e personalize com a cor e as imagens da sua marca.</p>
+        </div>
+        <div class="step">
+          <div class="num">2</div>
+          <h3>Gere o código da loja</h3>
+          <p>O sistema gera um QR Code/código único da sua loja para expor no ponto de venda.</p>
+        </div>
+        <div class="step">
+          <div class="num">3</div>
+          <h3>Fidelize na prática</h3>
+          <p>O cliente se vincula escaneando o código, e a cada compra você faz a marcação pelo painel — ele acompanha tudo pelo app.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="diferenciais">
+    <div class="wrap">
+      <h2 class="section-title">Feito pra sua marca, não pra genérica nenhuma</h2>
+      <p class="section-sub">O ACUMULAAI não é um cartão fidelidade de prateleira — ele se adapta ao seu negócio.</p>
+      <div class="dif-grid">
+        <div class="card">
+          <h3>Identidade visual própria</h3>
+          <p>Cor da marca e imagens (ícone, QR Code, banners de promoção) aparecem no app do seu cliente — não no app de um concorrente do lado.</p>
+        </div>
+        <div class="card">
+          <h3>Mecânica que você escolhe</h3>
+          <p>Marcações fixas (ex: 10 compras = 1 prêmio) ou pontos acumulados — a regra que fizer mais sentido pro seu negócio.</p>
+        </div>
+        <div class="card">
+          <h3>Painel completo</h3>
+          <p>Dashboard, campanhas, promoções, fila de aprovação e relatório de clientes — tudo em um só lugar, acessível de qualquer navegador.</p>
+        </div>
+        <div class="card">
+          <h3>App para o seu cliente</h3>
+          <p>Seu cliente acompanha o cartão fidelidade, promoções e resgates direto no celular — sem precisar carregar nada físico.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="para-quem">
+    <div class="wrap">
+      <h2 class="section-title">Pra quem é o ACUMULAAI</h2>
+      <p class="section-sub">Pequenos e médios negócios que vivem de cliente recorrente.</p>
+      <div class="tags">
+        <span>☕ Cafeterias</span>
+        <span>💇 Salões e barbearias</span>
+        <span>💄 Lojas de beleza</span>
+        <span>🍔 Restaurantes e lanchonetes</span>
+        <span>🛍️ Varejo em geral</span>
+        <span>💅 Estúdios e serviços</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-final">
+    <div class="wrap">
+      <h2 class="section-title">Pronto pra digitalizar a fidelidade da sua loja?</h2>
+      <p class="section-sub">Fale com a gente e veja como fica o ACUMULAAI com a cara da sua marca.</p>
+      <div class="hero-actions">
+        <a class="btn btn-accent" href="https://wa.me/5562984999122?text=Ol%C3%A1%2C%20quero%20saber%20mais%20sobre%20o%20ACUMULAAI" target="_blank" rel="noopener">Falar no WhatsApp</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="legal">
+      <strong>ACUMULAAI</strong> é um produto operado por 2RL (HR THECH LTDA) — CNPJ 49.905.063/0001-86.<br>
+      Av. Goiânia, 1114, Quadra 23, Lote 09, Loja 07 — Centro, Hidrolândia/GO.
+    </div>
+    <div>
+      <a href="/privacidade.html">Política de Privacidade</a><br>
+      <a href="mailto:privacidade@acumulaai.com.br">privacidade@acumulaai.com.br</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

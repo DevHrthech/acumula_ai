@@ -1,0 +1,30 @@
+# .htaccess do domínio principal (acumulaai.com.br): landing + painel da
+# Empresa em /app/. Enviar para a RAIZ do doc-root da conta web@acumulaai.com.br
+# com o nome ".htaccess" (o arquivo de lá hoje só tem a parte de cache abaixo).
+# Versão anterior guardada no servidor? Baixe antes de substituir.
+
+# Evita o problema de "versão presa em cache" após cada deploy do Flutter
+# Web: main.dart.js/index.html não têm hash de versão no nome, então um
+# Cache-Control longo (padrão do build) prende navegadores na versão antiga
+# até um hard-refresh manual. "no-cache" ainda permite cache, mas exige
+# revalidação (If-None-Match/If-Modified-Since) a cada uso — rápido (304)
+# quando nada mudou, busca o arquivo novo quando mudou.
+<IfModule mod_headers.c>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.js$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  # Cabeçalhos de segurança. Sem isso o painel podia ser embutido em outro
+  # site (clickjacking). A CSP aqui é só a parte que não atrapalha o Flutter
+  # Web (ele precisa de wasm/eval e de fontes externas, então uma CSP de
+  # scripts mais rígida quebraria o app).
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+  Header always set Strict-Transport-Security "max-age=31536000"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+</IfModule>
