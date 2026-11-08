@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import '../../state/admin_session.dart';
 import '../../theme/theme_provider.dart';
 import '../../widgets/admin/admin_ui.dart';
+import 'admin_dashboard_screen.dart';
 import 'admin_empresas_screen.dart';
 import 'admin_planos_screen.dart';
 import 'admin_monitoramento_screen.dart';
 import 'admin_usuarios_screen.dart';
 import 'admin_login_screen.dart';
 
-enum _AdminSecao { empresas, planos, monitoramento, usuarios }
+enum _AdminSecao { dashboard, empresas, planos, monitoramento, usuarios }
 
 class AdminShell extends StatefulWidget {
   final AdminSession session;
@@ -19,7 +20,7 @@ class AdminShell extends StatefulWidget {
 }
 
 class _AdminShellState extends State<AdminShell> {
-  _AdminSecao _secao = _AdminSecao.empresas;
+  _AdminSecao _secao = _AdminSecao.dashboard;
 
   void _sair() {
     widget.session.logout();
@@ -107,6 +108,12 @@ class _AdminShellState extends State<AdminShell> {
                       ),
                       const SizedBox(height: 10),
                       _ItemMenu(
+                        icone: Icons.dashboard_outlined,
+                        label: 'Dashboard',
+                        selecionado: _secao == _AdminSecao.dashboard,
+                        onTap: () => setState(() => _secao = _AdminSecao.dashboard),
+                      ),
+                      _ItemMenu(
                         icone: Icons.store_outlined,
                         label: 'Empresas',
                         selecionado: _secao == _AdminSecao.empresas,
@@ -193,6 +200,7 @@ class _AdminShellState extends State<AdminShell> {
               ),
               Expanded(
                 child: switch (_secao) {
+                  _AdminSecao.dashboard => AdminDashboardScreen(session: widget.session),
                   _AdminSecao.empresas => AdminEmpresasScreen(session: widget.session),
                   _AdminSecao.planos => AdminPlanosScreen(session: widget.session),
                   _AdminSecao.monitoramento => AdminMonitoramentoScreen(session: widget.session),

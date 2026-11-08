@@ -45,6 +45,16 @@ const limiteRecuperacao = rateLimit({
   message: { erro: 'Muitos pedidos de recuperação. Tente novamente mais tarde.' },
 });
 
+// Webhook do Asaas: tráfego legítimo e em rajadas (um evento por cobrança),
+// então o limite é folgado — a proteção real é o token do header.
+const limiteWebhook = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: chavePorIp,
+});
+
 // Limite geral pra API inteira, como rede de segurança básica contra abuso/DoS.
 const limiteGeral = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -54,4 +64,4 @@ const limiteGeral = rateLimit({
   keyGenerator: chavePorIp,
 });
 
-module.exports = { limiteLogin, limiteRegistro, limiteRecuperacao, limiteGeral };
+module.exports = { limiteLogin, limiteRegistro, limiteRecuperacao, limiteWebhook, limiteGeral };

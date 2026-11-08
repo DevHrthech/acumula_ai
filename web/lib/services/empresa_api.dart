@@ -14,7 +14,8 @@ class EmpresaApiException implements Exception {
 /// Cliente HTTP do painel da Empresa (loja). Fala direto com a API em
 /// produção — não há ambiente de staging separado ainda.
 class EmpresaApi {
-  static const String baseUrl = 'https://api.acumulaai.com.br';
+  // Em desenvolvimento, aponte para a API local: --dart-define=API_URL=http://localhost:3055
+  static const String baseUrl = String.fromEnvironment('API_URL', defaultValue: 'https://api.acumulaai.com.br');
 
   /// Chamado quando uma requisição autenticada volta 401 (token expirado ou
   /// inválido) — o app registra aqui o que fazer (limpar sessão e ir pro login).
@@ -59,6 +60,9 @@ class EmpresaApi {
     String? categoria,
     String tipoFidelidade = 'MARCACOES',
     int metaFidelidade = 10,
+    required String planoId,
+    required String formaPagamento,
+    required bool aceiteTermos,
   }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/auth/empresa/registrar'),
@@ -72,13 +76,38 @@ class EmpresaApi {
         'categoria': ?categoria,
         'tipoFidelidade': tipoFidelidade,
         'metaFidelidade': metaFidelidade,
+        'planoId': planoId,
+        'formaPagamento': formaPagamento,
+        'aceiteTermos': aceiteTermos,
       }),
     );
     return await _handle(res) as Map<String, dynamic>;
   }
 
+  /// Planos ativos para escolher no auto-cadastro (rota pública).
+  Future<List<dynamic>> listarPlanosPublicos() async {
+    final res = await http.get(Uri.parse('$baseUrl/planos'));
+    return await _handle(res) as List<dynamic>;
+  }
+
   Future<Map<String, dynamic>> me() async {
     final res = await http.get(Uri.parse('$baseUrl/empresas/me'), headers: _headers);
+    return await _handle(res) as Map<String, dynamic>;
+  }
+
+  /// Licença atual (trial/paga) e as cobranças mensais com o link da fatura.
+  Future<Map<String, dynamic>> minhaAssinatura() async {
+    final res = await http.get(Uri.parse('$baseUrl/empresas/me/assinatura'), headers: _headers);
+    return await _handle(res) as Map<String, dynamic>;
+  }
+
+  /// Escolhe/troca a forma de pagamento (`PIX` ou `CARTAO_RECORRENTE`).
+  Future<Map<String, dynamic>> alterarFormaPagamento(String forma) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/empresas/me/assinatura/forma-pagamento'),
+      headers: _headers,
+      body: jsonEncode({'formaPagamento': forma}),
+    );
     return await _handle(res) as Map<String, dynamic>;
   }
 

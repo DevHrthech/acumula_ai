@@ -7,6 +7,9 @@ const { gerarCodigoLojaUnico } = require('../utils/codigoLoja');
 const cnpjUtil = require('../utils/cnpj');
 const { limiteLogin, limiteRegistro } = require('../middleware/rateLimiters');
 const { primeiroErroTexto } = require('../utils/validar');
+const { FORMAS_PAGAMENTO, VERSAO_TERMOS, DIAS_TRIAL, periodoTrial } = require('../utils/trial');
+const asaas = require('../utils/asaas');
+const { garantirAssinatura } = require('../utils/assinatura');
 
 const router = express.Router();
 
@@ -45,12 +48,25 @@ router.post('/registrar', limiteRegistro, async (req, res) => {
     categoria,
     tipoFidelidade,
     metaFidelidade,
+    planoId,
+    formaPagamento,
+    aceiteTermos,
   } = req.body || {};
 
   if (!nome || !cnpj || !email || !senha || !descricaoRecompensa) {
     return res.status(400).json({
       erro: 'Campos obrigatórios: nome, cnpj, email, senha, descricaoRecompensa.',
     });
+  }
+
+  if (typeof planoId !== 'string' || !planoId) {
+    return res.status(400).json({ erro: 'Escolha um plano.' });
+  }
+  if (!FORMAS_PAGAMENTO.includes(formaPagamento)) {
+    return res.status(400).json({ erro: 'formaPagamento deve ser PIX ou CARTAO_RECORRENTE.' });
+  }
+  if (aceiteTermos !== true) {
+    return res.status(400).json({ erro: 'É preciso aceitar que os pagamentos serão processados via gateway Asaas.' });
   }
 
   const erroTexto = primeiroErroTexto({
@@ -85,10 +101,18 @@ router.post('/registrar', limiteRegistro, async (req, res) => {
   }
 
   try {
+    const plano = await prisma.plano.findUnique({ where: { id: planoId } });
+    if (!plano || !plano.ativo) {
+      return res.status(400).json({ erro: 'Plano indisponível. Escolha outro.' });
+    }
+
     const senhaHash = await bcrypt.hash(senha, 12);
     const codigoLoja = await gerarCodigoLojaUnico(prisma);
+    const trial = periodoTrial();
 
-    const empresa = await prisma.empresa.create({
+    // Empresa + licença de trial nascem juntas (uma única escrita): o CNPJ é
+    // único, então o trial só é concedido uma vez por empresa.
+    let empresa = await prisma.empresa.create({
       data: {
         nome,
         cnpj: cnpjUtil.formatar(cnpj),
@@ -99,11 +123,62 @@ router.post('/registrar', limiteRegistro, async (req, res) => {
         tipo_fidelidade: tipoFidelidade || 'MARCACOES',
         meta_fidelidade: metaFidelidade || 10,
         descricao_recompensa: descricaoRecompensa,
+        trial_usado_em: new Date(),
+        aceite_termos_em: new Date(),
+        aceite_termos_versao: VERSAO_TERMOS,
+        licencas: {
+          create: {
+            plano_id: plano.id,
+            forma_pagamento: formaPagamento,
+            em_trial: true,
+            gateway_provedor: 'ASAAS',
+            data_inicio: trial.inicio,
+            data_vencimento: trial.vencimento,
+          },
+        },
       },
+      include: { licencas: true },
     });
 
+    // Replica a empresa como cliente no Asaas. Se falhar (Asaas fora do ar,
+    // sem configuração), o cadastro NÃO é desfeito: asaas_customer_id fica
+    // nulo e a replicação é refeita ao gerar a primeira cobrança.
+    let asaasSincronizado = false;
+    try {
+      const asaasId = await asaas.garantirCliente(empresa);
+      empresa = await prisma.empresa.update({
+        where: { id: empresa.id },
+        data: { asaas_customer_id: asaasId },
+        include: { licencas: true },
+      });
+      asaasSincronizado = true;
+    } catch (errAsaas) {
+      console.error('Falha ao replicar empresa no Asaas:', errAsaas.message);
+    }
+
+    // Assinatura mensal no Asaas: a 1ª cobrança vence no dia seguinte ao fim
+    // do trial. Mesma regra de falha: não desfaz o cadastro; o admin pode
+    // refazer em POST /admin/licencas/:id/assinatura.
+    let assinaturaCriada = false;
+    if (asaasSincronizado) {
+      try {
+        await garantirAssinatura(empresa.licencas[0].id);
+        assinaturaCriada = true;
+      } catch (errAssinatura) {
+        console.error('Falha ao criar assinatura no Asaas:', errAssinatura.message);
+      }
+    }
+
+    const licencaFinal = await prisma.licenca.findUnique({ where: { id: empresa.licencas[0].id } });
+    const { licencas, ...dadosEmpresa } = empresa;
     const token = gerarToken(empresa);
-    return res.status(201).json({ empresa: sanitizarEmpresa(empresa), token });
+    return res.status(201).json({
+      empresa: sanitizarEmpresa(dadosEmpresa),
+      token,
+      licenca: { ...licencaFinal, dias_trial: DIAS_TRIAL },
+      asaas_sincronizado: asaasSincronizado,
+      assinatura_criada: assinaturaCriada,
+    });
   } catch (err) {
     if (err.code === 'P2002') {
       const campo = err.meta?.target?.[0] || 'campo único';

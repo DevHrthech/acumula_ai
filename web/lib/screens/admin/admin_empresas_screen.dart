@@ -230,10 +230,10 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
   }
 
   void _exportarCsv() {
-    final linhas = <String>['Nome;CNPJ;Email;Codigo;Status'];
+    final linhas = <String>['Nome;CNPJ;Email;Codigo;Situacao;Plano;Forma de pagamento'];
     for (final e in _listaFiltrada) {
       linhas.add(
-        '${e['nome']};${e['cnpj']};${e['email']};${e['codigo_loja']};${e['licenca_status'] ?? 'SEM_LICENCA'}',
+        '${e['nome']};${e['cnpj']};${e['email']};${e['codigo_loja']};${e['situacao_financeira'] ?? 'SEM_LICENCA'};${e['plano_nome'] ?? ''};${e['forma_pagamento'] ?? ''}',
       );
     }
     final csv = linhas.join('\n');
@@ -261,9 +261,7 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
 
     if (_filtroStatus != 'TODOS') {
       lista = lista.where((e) {
-        final status = e['licenca_status'] as String?;
-        if (_filtroStatus == 'SEM_LICENCA') return status == null;
-        return status == _filtroStatus;
+        return e['situacao_financeira'] == _filtroStatus;
       }).toList();
     }
 
@@ -294,14 +292,15 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
 
     final todas = _empresas!.cast<Map<String, dynamic>>();
     final total = todas.length;
-    final ativas = todas.where((e) => e['licenca_status'] == 'ATIVA').length;
-    final semLicenca = todas.where((e) => e['licenca_status'] == null).length;
-    final inadimplentes = todas
-        .where((e) => e['licenca_status'] == 'INADIMPLENTE')
-        .length;
-    final pctAtivas = total == 0
+    int contar(List<String> situacoes) =>
+        todas.where((e) => situacoes.contains(e['situacao_financeira'])).length;
+    final emDia = contar(['PAGA', 'ATIVA_MANUAL']);
+    final emTeste = contar(['EM_TESTE']);
+    final atrasadas = contar(['ATRASADA', 'BLOQUEADA']);
+    final semLicenca = contar(['SEM_LICENCA']);
+    final pctEmDia = total == 0
         ? '0%'
-        : '${(ativas / total * 100).toStringAsFixed(1)}% da base';
+        : '${(emDia / total * 100).toStringAsFixed(1)}% da base';
 
     final lista = _listaFiltrada;
 
@@ -345,12 +344,28 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
                 corIcone: theme.primary,
               ),
               AdminStatCard(
-                titulo: 'ATIVAS / REGULARES',
-                valor: formatarMilhar(ativas),
+                titulo: 'PAGAS / EM DIA',
+                valor: formatarMilhar(emDia),
                 icone: Icons.verified_outlined,
                 corIcone: theme.success,
-                legenda: pctAtivas,
+                legenda: pctEmDia,
                 corLegenda: theme.success,
+              ),
+              AdminStatCard(
+                titulo: 'EM TESTE',
+                valor: formatarMilhar(emTeste),
+                icone: Icons.card_giftcard_outlined,
+                corIcone: theme.primary,
+                legenda: emTeste > 0 ? 'Trial de 15 dias' : null,
+                corLegenda: theme.primary,
+              ),
+              AdminStatCard(
+                titulo: 'ATRASADAS / BLOQUEADAS',
+                valor: formatarMilhar(atrasadas),
+                icone: Icons.warning_amber_outlined,
+                corIcone: theme.danger,
+                legenda: atrasadas > 0 ? 'Atenção financeira' : null,
+                corLegenda: theme.danger,
               ),
               AdminStatCard(
                 titulo: 'SEM LICENÇA',
@@ -358,14 +373,6 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
                 icone: Icons.block_outlined,
                 corIcone: theme.textMuted,
                 legenda: semLicenca > 0 ? 'Requer ativação' : null,
-              ),
-              AdminStatCard(
-                titulo: 'INADIMPLENTES',
-                valor: formatarMilhar(inadimplentes),
-                icone: Icons.warning_amber_outlined,
-                corIcone: theme.warning,
-                legenda: inadimplentes > 0 ? 'Atenção financeira' : null,
-                corLegenda: theme.warning,
               ),
             ],
           ),
@@ -406,22 +413,18 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
                     value: 'TODOS',
                     child: Text('Todos os status'),
                   ),
-                  DropdownMenuItem(value: 'ATIVA', child: Text('Ativa')),
+                  DropdownMenuItem(value: 'PAGA', child: Text('Paga')),
+                  DropdownMenuItem(value: 'EM_TESTE', child: Text('Em teste')),
+                  DropdownMenuItem(value: 'ATRASADA', child: Text('Atrasada')),
+                  DropdownMenuItem(value: 'BLOQUEADA', child: Text('Bloqueada')),
+                  DropdownMenuItem(value: 'CANCELADA', child: Text('Cancelada')),
                   DropdownMenuItem(
-                    value: 'INADIMPLENTE',
-                    child: Text('Inadimplente'),
+                    value: 'ATIVA_MANUAL',
+                    child: Text('Ativa (manual)'),
                   ),
                   DropdownMenuItem(
                     value: 'SEM_LICENCA',
                     child: Text('Sem licença'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'BLOQUEADA',
-                    child: Text('Bloqueada'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'CANCELADA',
-                    child: Text('Cancelada'),
                   ),
                 ],
                 onChanged: (v) => setState(() => _filtroStatus = v!),
@@ -488,16 +491,31 @@ class _LinhaEmpresa extends StatelessWidget {
 
   const _LinhaEmpresa({required this.empresa, required this.onTap});
 
+  String _nomeForma(String? forma) => switch (forma) {
+        'CARTAO_RECORRENTE' => 'Cartão recorrente',
+        'PIX' => 'Pix',
+        _ => 'Forma não definida',
+      };
+
+  /// "Fatura R$ 99,90 · vence 11/11" (ou "venceu 11/11" se atrasada).
+  String _textoFatura(Map<String, dynamic> fatura) {
+    final venc = DateTime.parse((fatura['data_vencimento'] as String).substring(0, 10));
+    final data = '${venc.day.toString().padLeft(2, '0')}/${venc.month.toString().padLeft(2, '0')}';
+    final verbo = fatura['atrasada'] == true ? 'venceu' : 'vence';
+    return 'Fatura R\$ ${formatarMoeda(fatura['valor'] as num)} · $verbo $data';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final status = empresa['licenca_status'] as String?;
-    final apresentacao = apresentarStatusLicenca(theme, status);
+    final situacao = empresa['situacao_financeira'] as String?;
+    final apresentacao = apresentarSituacaoFinanceira(theme, situacao);
+    final fatura = empresa['fatura_aberta'] as Map<String, dynamic>?;
     final nome = empresa['nome'] as String;
 
-    final (acaoLabel, acaoIcone) = switch (status) {
-      null => ('Gerar Licença', Icons.vpn_key_outlined),
-      'INADIMPLENTE' => ('Gerir Licença', Icons.credit_card_outlined),
+    final (acaoLabel, acaoIcone) = switch (situacao) {
+      null || 'SEM_LICENCA' => ('Gerar Licença', Icons.vpn_key_outlined),
+      'ATRASADA' => ('Gerir Licença', Icons.credit_card_outlined),
       'BLOQUEADA' || 'CANCELADA' => ('Reativar', Icons.autorenew),
       _ => ('Editar', Icons.edit_outlined),
     };
@@ -599,6 +617,26 @@ class _LinhaEmpresa extends StatelessWidget {
                       cor: apresentacao.cor,
                       fundo: apresentacao.fundo,
                     ),
+                    if (empresa['plano_nome'] != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        '${empresa['plano_nome']} · ${_nomeForma(empresa['forma_pagamento'] as String?)}',
+                        style: TextStyle(fontSize: 11.5, color: theme.textMuted),
+                      ),
+                    ],
+                    if (fatura != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _textoFatura(fatura),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: fatura['atrasada'] == true
+                              ? theme.danger
+                              : theme.textMuted,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     Row(
                       mainAxisSize: MainAxisSize.min,

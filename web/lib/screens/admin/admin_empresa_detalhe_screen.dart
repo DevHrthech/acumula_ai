@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../services/admin_api.dart';
 import '../../state/admin_session.dart';
 import '../../theme/theme_provider.dart';
+import '../../utils/abrir_link.dart';
 import '../../utils/admin_status.dart';
 import '../../widgets/admin/admin_ui.dart';
 
@@ -62,6 +63,8 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
     }
     String planoId = _planos.first['id'] as String;
     DateTime vencimento = DateTime.now().add(const Duration(days: 30));
+    String forma = 'PIX';
+    bool criarAssinatura = true;
 
     final confirmado = await showDialog<bool>(
       context: context,
@@ -85,6 +88,25 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
                 data: vencimento,
                 onSelecionar: (d) => setDialogState(() => vencimento = d),
               ),
+              AdminDropdown<String>(
+                label: 'Forma de pagamento',
+                value: forma,
+                items: const [
+                  DropdownMenuItem(value: 'PIX', child: Text('Pix')),
+                  DropdownMenuItem(value: 'CARTAO_RECORRENTE', child: Text('Cartão de crédito recorrente')),
+                ],
+                onChanged: (v) => setDialogState(() => forma = v!),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: criarAssinatura,
+                onChanged: (v) => setDialogState(() => criarAssinatura = v),
+                title: const Text('Criar assinatura no Asaas agora', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                subtitle: const Text(
+                  'A 1ª fatura vence no dia seguinte ao vencimento da licença. Desligado, a licença fica sem cobrança automática.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
             ],
           ),
           acoes: [
@@ -98,12 +120,15 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
     if (confirmado != true) return;
 
     try {
-      await widget.session.api.criarLicenca(
+      final r = await widget.session.api.criarLicenca(
         empresaId: widget.empresaId,
         planoId: planoId,
         dataInicio: DateTime.now(),
         dataVencimento: vencimento,
+        formaPagamento: forma,
+        criarAssinatura: criarAssinatura,
       );
+      if (r['aviso'] != null) _mostrarErro(r['aviso'] as String);
       _carregar();
     } on AdminApiException catch (e) {
       _mostrarErro(e.mensagem);
@@ -119,7 +144,55 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
     );
     if (data == null) return;
     try {
-      await widget.session.api.atualizarLicenca(licencaId: licencaId, dataVencimento: data, status: 'ATIVA');
+      final r = await widget.session.api.atualizarLicenca(licencaId: licencaId, dataVencimento: data, status: 'ATIVA');
+      if (r['aviso'] != null) _mostrarErro(r['aviso'] as String);
+      _carregar();
+    } on AdminApiException catch (e) {
+      _mostrarErro(e.mensagem);
+    }
+  }
+
+  Future<void> _alterarForma(String licencaId, String formaAtual) async {
+    String forma = formaAtual;
+    final confirmado = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AdminDialogShell(
+          icone: Icons.payments_outlined,
+          titulo: 'Forma de pagamento',
+          subtitulo: 'Se a licença já tem assinatura no Asaas, ela é cancelada e recriada com a nova forma.',
+          conteudo: AdminDropdown<String>(
+            label: 'Forma de pagamento',
+            value: forma,
+            items: const [
+              DropdownMenuItem(value: 'PIX', child: Text('Pix')),
+              DropdownMenuItem(value: 'CARTAO_RECORRENTE', child: Text('Cartão de crédito recorrente')),
+            ],
+            onChanged: (v) => setDialogState(() => forma = v!),
+          ),
+          acoes: [
+            AdminDialogActions.cancelar(context),
+            AdminDialogActions.confirmar(context, 'Salvar'),
+          ],
+        ),
+      ),
+    );
+    if (confirmado != true || forma == formaAtual) return;
+    try {
+      final r = await widget.session.api.alterarFormaPagamento(licencaId, forma);
+      if (r['aviso'] != null) _mostrarErro(r['aviso'] as String);
+      _carregar();
+    } on AdminApiException catch (e) {
+      _mostrarErro(e.mensagem);
+    }
+  }
+
+  Future<void> _criarAssinaturaAsaas(String licencaId) async {
+    try {
+      await widget.session.api.criarAssinaturaAsaas(licencaId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Assinatura criada no Asaas.')));
       _carregar();
     } on AdminApiException catch (e) {
       _mostrarErro(e.mensagem);
@@ -127,6 +200,24 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
   }
 
   Future<void> _alterarStatusLicenca(String licencaId, String status) async {
+    if (status == 'CANCELADA') {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Cancelar licença'),
+          content: const Text(
+            'A licença será cancelada e, se ela tiver assinatura no Asaas, a assinatura também é '
+            'cancelada e as faturas em aberto são removidas. Continuar?',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Voltar')),
+            TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Cancelar licença')),
+          ],
+        ),
+      );
+      if (confirmar != true) return;
+    }
     try {
       await widget.session.api.atualizarLicenca(licencaId: licencaId, status: status);
       _carregar();
@@ -315,7 +406,9 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
     final nome = e['nome'] as String;
     final cnpj = e['cnpj'] as String;
 
-    final statusGeral = apresentarStatusLicenca(theme, ultimaLicenca?['status_efetivo'] as String?);
+    final situacao = e['situacao_financeira'] as String?;
+    final statusGeral = apresentarSituacaoFinanceira(theme, situacao);
+    final cobrancas = (e['cobrancas'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
 
     return Scaffold(
       backgroundColor: theme.bgPage,
@@ -343,7 +436,7 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
                 AdminOutlineButton(icone: Icons.sync, label: 'Sincronizar', onPressed: _carregar),
                 const SizedBox(width: 10),
                 AdminBadge(
-                  texto: ultimaLicenca?['status_efetivo'] == 'ATIVA' ? 'ATIVA NO SISTEMA' : statusGeral.texto.toUpperCase(),
+                  texto: statusGeral.texto.toUpperCase(),
                   cor: statusGeral.cor,
                   fundo: statusGeral.fundo,
                 ),
@@ -504,6 +597,8 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
                                 licenca: l,
                                 onRenovar: () => _renovarLicenca(l['id'] as String),
                                 onStatus: (s) => _alterarStatusLicenca(l['id'] as String, s),
+                                onAssinatura: () => _criarAssinaturaAsaas(l['id'] as String),
+                                onForma: () => _alterarForma(l['id'] as String, (l['forma_pagamento'] as String?) ?? 'PIX'),
                               )).toList(),
                         ),
                 );
@@ -536,6 +631,20 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
                   ],
                 );
               },
+            ),
+            const SizedBox(height: 20),
+            AdminSectionCard(
+              icone: Icons.receipt_long_outlined,
+              corIcone: theme.primary,
+              titulo: 'Cobranças',
+              subtitulo: 'Faturas mensais geradas pelo gateway Asaas',
+              child: cobrancas.isEmpty
+                  ? const AdminEmptyState(
+                      icone: Icons.receipt_long_outlined,
+                      titulo: 'Nenhuma cobrança gerada',
+                      descricao: 'As faturas aparecem aqui quando a assinatura da licença é criada no Asaas.',
+                    )
+                  : Column(children: cobrancas.map((c) => _LinhaCobranca(cobranca: c)).toList()),
             ),
           ],
         ),
@@ -683,15 +792,30 @@ class _LinhaLicenca extends StatelessWidget {
   final Map<String, dynamic> licenca;
   final VoidCallback onRenovar;
   final ValueChanged<String> onStatus;
+  final VoidCallback onAssinatura;
+  final VoidCallback onForma;
 
-  const _LinhaLicenca({required this.licenca, required this.onRenovar, required this.onStatus});
+  const _LinhaLicenca({required this.licenca, required this.onRenovar, required this.onStatus, required this.onAssinatura, required this.onForma});
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final status = licenca['status_efetivo'] as String? ?? licenca['status'] as String;
-    final apresentacao = apresentarStatusLicenca(theme, status);
+    final emTeste = status == 'ATIVA' && licenca['em_trial'] == true;
+    final apresentacao = emTeste
+        ? apresentarSituacaoFinanceira(theme, 'EM_TESTE')
+        : status == 'INADIMPLENTE'
+            ? apresentarSituacaoFinanceira(theme, 'ATRASADA')
+            : apresentarStatusLicenca(theme, status);
     final vencimento = DateTime.parse(licenca['data_vencimento'] as String);
+    final forma = switch (licenca['forma_pagamento']) {
+      'PIX' => 'Pix',
+      'CARTAO_RECORRENTE' => 'Cartão recorrente',
+      _ => null,
+    };
+    final semAssinatura = licenca['forma_pagamento'] != null &&
+        licenca['gateway_assinatura_id'] == null &&
+        status != 'CANCELADA';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -705,7 +829,16 @@ class _LinhaLicenca extends StatelessWidget {
               children: [
                 Text('Plano: ${licenca['plano']?['nome'] ?? licenca['plano_id']}', style: TextStyle(fontWeight: FontWeight.w600, color: theme.textDark, fontSize: 13.5)),
                 const SizedBox(height: 2),
-                Text('Vencimento: ${vencimento.day}/${vencimento.month}/${vencimento.year}', style: TextStyle(fontSize: 12, color: theme.textMuted)),
+                Text(
+                  '${emTeste ? 'Teste grátis até' : 'Vencimento:'} ${vencimento.day}/${vencimento.month}/${vencimento.year}'
+                  '${forma != null ? ' · $forma' : ''}',
+                  style: TextStyle(fontSize: 12, color: theme.textMuted),
+                ),
+                if (semAssinatura)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text('Cobrança no Asaas não ativada', style: TextStyle(fontSize: 11.5, color: theme.danger, fontWeight: FontWeight.w600)),
+                  ),
               ],
             ),
           ),
@@ -713,12 +846,76 @@ class _LinhaLicenca extends StatelessWidget {
           IconButton(icon: const Icon(Icons.autorenew, size: 18), tooltip: 'Renovar', onPressed: onRenovar),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, size: 18, color: theme.textMuted),
-            onSelected: onStatus,
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'BLOQUEADA', child: Text('Bloquear')),
-              PopupMenuItem(value: 'CANCELADA', child: Text('Cancelar')),
+            onSelected: (v) => switch (v) {
+              'ASSINATURA' => onAssinatura(),
+              'FORMA' => onForma(),
+              _ => onStatus(v),
+            },
+            itemBuilder: (context) => [
+              if (semAssinatura) const PopupMenuItem(value: 'ASSINATURA', child: Text('Criar assinatura no Asaas')),
+              if (status != 'CANCELADA') const PopupMenuItem(value: 'FORMA', child: Text('Alterar forma de pagamento')),
+              const PopupMenuItem(value: 'BLOQUEADA', child: Text('Bloquear')),
+              const PopupMenuItem(value: 'CANCELADA', child: Text('Cancelar')),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LinhaCobranca extends StatelessWidget {
+  final Map<String, dynamic> cobranca;
+
+  const _LinhaCobranca({required this.cobranca});
+
+  String _data(String iso) {
+    final d = DateTime.parse(iso.substring(0, 10));
+    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final status = cobranca['status'] as String;
+    final apresentacao = apresentarStatusCobranca(theme, status, atrasada: cobranca['atrasada'] == true);
+    final pagamento = cobranca['data_pagamento'] as String?;
+    final link = cobranca['invoice_url'] as String?;
+    final forma = switch (cobranca['forma_pagamento']) {
+      'PIX' => 'Pix',
+      'CREDIT_CARD' => 'Cartão',
+      'BOLETO' => 'Boleto',
+      _ => null,
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: theme.bgPage, borderRadius: BorderRadius.circular(10), border: Border.all(color: theme.border)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('R\$ ${formatarMoeda(cobranca['valor'] as num)}', style: TextStyle(fontWeight: FontWeight.w700, color: theme.textDark, fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(
+                  'Vence em ${_data(cobranca['data_vencimento'] as String)}'
+                  '${pagamento != null ? ' · paga em ${_data(pagamento)}' : ''}'
+                  '${forma != null ? ' · $forma' : ''}',
+                  style: TextStyle(fontSize: 12, color: theme.textMuted),
+                ),
+              ],
+            ),
+          ),
+          AdminBadge(texto: apresentacao.texto.toUpperCase(), cor: apresentacao.cor, fundo: apresentacao.fundo),
+          if (link != null && link.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.open_in_new, size: 18),
+              tooltip: 'Abrir fatura',
+              onPressed: () => abrirLink(link),
+            ),
         ],
       ),
     );

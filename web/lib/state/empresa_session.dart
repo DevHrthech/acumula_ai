@@ -33,6 +33,9 @@ class EmpresaSession extends ChangeNotifier {
     String? categoria,
     String tipoFidelidade = 'MARCACOES',
     int metaFidelidade = 10,
+    required String planoId,
+    required String formaPagamento,
+    required bool aceiteTermos,
   }) async {
     final resultado = await EmpresaApi().registrar(
       nome: nome,
@@ -43,6 +46,9 @@ class EmpresaSession extends ChangeNotifier {
       categoria: categoria,
       tipoFidelidade: tipoFidelidade,
       metaFidelidade: metaFidelidade,
+      planoId: planoId,
+      formaPagamento: formaPagamento,
+      aceiteTermos: aceiteTermos,
     );
     token = resultado['token'] as String;
     empresa = resultado['empresa'] as Map<String, dynamic>;

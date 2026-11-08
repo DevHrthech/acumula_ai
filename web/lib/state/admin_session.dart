@@ -12,7 +12,7 @@ class AdminSession extends ChangeNotifier {
   AdminApi get api => AdminApi(token: token);
 
   Future<void> login(String email, String senha, {bool lembrar = false}) async {
-    final resultado = await AdminApi().login(email, senha);
+    final resultado = await AdminApi().login(email, senha, lembrar: lembrar);
     token = resultado['token'] as String;
     final admin = resultado['admin'] as Map<String, dynamic>;
     nome = admin['nome'] as String;
@@ -43,6 +43,10 @@ class AdminSession extends ChangeNotifier {
   }
 
   void logout() {
+    // Melhor esforço: se a rede falhar, o token local é apagado do mesmo jeito.
+    // (Quando o logout vem de um 401, o servidor já recusou o token.)
+    final atual = token;
+    if (atual != null) AdminApi(token: atual).logout().catchError((_) {});
     ArmazenamentoAdmin.limpar();
     token = null;
     nome = null;

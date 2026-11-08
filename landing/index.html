@@ -104,6 +104,9 @@
     font-weight: 600;
   }
   .nav-cta:hover { background: var(--primary); color: #fff; }
+  .nav-actions { display: flex; gap: 10px; align-items: center; }
+  .nav-cta-fill { background: var(--primary); color: #fff; }
+  .nav-cta-fill:hover { background: var(--primary-dark); }
 
   .hero {
     background: linear-gradient(135deg, var(--primary), var(--primary-dark));
@@ -268,7 +271,10 @@
 
 <header class="top">
   <a class="logo" href="/">ACUMULA<span>AI</span></a>
-  <a class="nav-cta" href="/app/">Entrar</a>
+  <div class="nav-actions">
+    <a class="nav-cta" href="/app/">Entrar</a>
+    <a class="nav-cta nav-cta-fill" href="/app/?cadastro=1">Testar grátis</a>
+  </div>
 </header>
 
 <section class="hero">
@@ -276,7 +282,8 @@
     <h1>O cartão fidelidade digital da sua loja, sem papel e sem carimbo perdido</h1>
     <p class="lead">O ACUMULAAI digitaliza o programa de fidelidade do seu negócio: você define a regra (marcações ou pontos), personaliza com a cor e a logo da sua marca, e acompanha tudo em um painel simples — enquanto seus clientes acompanham o progresso pelo próprio celular.</p>
     <div class="hero-actions">
-      <a class="btn btn-accent" href="https://wa.me/5562984999122?text=Ol%C3%A1%2C%20quero%20saber%20mais%20sobre%20o%20ACUMULAAI" target="_blank" rel="noopener">Falar no WhatsApp</a>
+      <a class="btn btn-accent" href="/app/?cadastro=1">Iniciar teste grátis de 15 dias</a>
+      <a class="btn btn-outline" href="https://wa.me/5562984999122?text=Ol%C3%A1%2C%20quero%20saber%20mais%20sobre%20o%20ACUMULAAI" target="_blank" rel="noopener">Falar no WhatsApp</a>
       <a class="btn btn-outline" href="/app/">Já sou cliente → Entrar</a>
     </div>
   </div>
@@ -374,9 +381,10 @@
   <section class="cta-final">
     <div class="wrap">
       <h2 class="section-title">Pronto pra digitalizar a fidelidade da sua loja?</h2>
-      <p class="section-sub">Fale com a gente e veja como fica o ACUMULAAI com a cara da sua marca.</p>
+      <p class="section-sub">Comece o teste grátis ou fale com a gente e veja como fica o ACUMULAAI com a cara da sua marca.</p>
       <div class="hero-actions">
-        <a class="btn btn-accent" href="https://wa.me/5562984999122?text=Ol%C3%A1%2C%20quero%20saber%20mais%20sobre%20o%20ACUMULAAI" target="_blank" rel="noopener">Falar no WhatsApp</a>
+        <a class="btn btn-accent" href="/app/?cadastro=1">Iniciar teste grátis de 15 dias</a>
+        <a class="btn btn-outline" href="https://wa.me/5562984999122?text=Ol%C3%A1%2C%20quero%20saber%20mais%20sobre%20o%20ACUMULAAI" target="_blank" rel="noopener">Falar no WhatsApp</a>
       </div>
     </div>
   </section>

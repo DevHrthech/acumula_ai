@@ -38,4 +38,14 @@ function fimDoDiaBrasilia(data) {
   return new Date(new Date(data).getTime() + DIA_MS + 3 * 60 * 60 * 1000 - 1);
 }
 
-module.exports = { hojeBrasilia, paraData, fimDoDiaBrasilia, DIA_MS };
+// Soma `n` meses a um dia de calendário (meia-noite UTC), limitando ao último
+// dia do mês de destino (31/01 + 1 mês = 28/02, como o Asaas faz).
+function somarMeses(data, n) {
+  const d = new Date(data);
+  const alvo = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1));
+  const ultimoDia = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0)).getUTCDate();
+  alvo.setUTCDate(Math.min(d.getUTCDate(), ultimoDia));
+  return alvo;
+}
+
+module.exports = { hojeBrasilia, paraData, fimDoDiaBrasilia, somarMeses, DIA_MS };

@@ -34,6 +34,10 @@ CREATE TABLE empresas (
   mensagem_boas_vindas  VARCHAR(255) NULL,
   mensagem_resgate      VARCHAR(255) NULL,
   texto_botao_resgate   VARCHAR(60) NOT NULL DEFAULT 'Resgatar recompensa',
+  asaas_customer_id     VARCHAR(50) NULL,          -- cliente espelhado no Asaas (nulo = ainda não replicado)
+  trial_usado_em        TIMESTAMP NULL,            -- trial de 15 dias concedido uma única vez
+  aceite_termos_em      TIMESTAMP NULL,            -- aceite da cobrança via gateway Asaas
+  aceite_termos_versao  VARCHAR(20) NULL,
   created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_empresas_empresa_pai FOREIGN KEY (empresa_pai_id) REFERENCES empresas(id),
@@ -191,7 +195,8 @@ CREATE TABLE admins_2rl (
   nome        VARCHAR(150) NOT NULL,
   email       VARCHAR(150) NOT NULL UNIQUE,
   senha_hash  VARCHAR(255) NOT NULL,
-  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  token_valido_desde TIMESTAMP NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE planos (
@@ -216,7 +221,9 @@ CREATE TABLE licencas (
   dias_tolerancia        INT UNSIGNED NOT NULL DEFAULT 5,
   gateway_provedor       VARCHAR(50) NULL,
   gateway_assinatura_id  VARCHAR(150) NULL,
-  created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  forma_pagamento        ENUM('PIX','CARTAO_RECORRENTE') NULL,
+  em_trial               TINYINT(1) NOT NULL DEFAULT 0,
+  created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_licencas_empresa FOREIGN KEY (empresa_id) REFERENCES empresas(id),
   CONSTRAINT fk_licencas_plano FOREIGN KEY (plano_id) REFERENCES planos(id)
@@ -237,6 +244,62 @@ CREATE TABLE contratos (
   CONSTRAINT fk_contratos_empresa FOREIGN KEY (empresa_id) REFERENCES empresas(id),
   CONSTRAINT fk_contratos_licenca FOREIGN KEY (licenca_id) REFERENCES licencas(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Cobranças mensais da assinatura da licença no Asaas (espelho de `payment`,
+-- atualizado por POST /webhooks/asaas). licenca_estendida_em garante que
+-- CONFIRMED + RECEIVED do mesmo pagamento renovem a licença uma única vez.
+CREATE TABLE cobrancas (
+  id                     VARCHAR(36) PRIMARY KEY,
+  licenca_id             VARCHAR(36) NOT NULL,
+  empresa_id             VARCHAR(36) NOT NULL,
+  asaas_payment_id       VARCHAR(50) NOT NULL UNIQUE,
+  asaas_subscription_id  VARCHAR(50) NULL,
+  valor                  DECIMAL(10,2) NOT NULL,
+  forma_pagamento        VARCHAR(30) NULL,
+  status                 VARCHAR(40) NOT NULL,
+  data_vencimento        DATE NOT NULL,
+  data_pagamento         DATE NULL,
+  invoice_url            VARCHAR(500) NULL,
+  licenca_estendida_em   TIMESTAMP NULL,
+  created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_cobrancas_licenca FOREIGN KEY (licenca_id) REFERENCES licencas(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_cobrancas_licenca ON cobrancas(licenca_id);
+CREATE INDEX idx_cobrancas_empresa ON cobrancas(empresa_id);
+
+-- Notas fiscais de serviço (NFS-e) emitidas pelo Asaas para cobranças pagas
+-- (espelho de `invoice`, atualizado pelos eventos INVOICE_* do webhook).
+-- pdf_url (DANFSe) e xml_url só existem depois da autorização;
+-- email_enviado_em garante um único e-mail por nota.
+CREATE TABLE notas_fiscais (
+  id                 VARCHAR(36) PRIMARY KEY,
+  empresa_id         VARCHAR(36) NOT NULL,
+  licenca_id         VARCHAR(36) NOT NULL,
+  asaas_invoice_id   VARCHAR(50) NOT NULL UNIQUE,
+  asaas_payment_id   VARCHAR(50) NOT NULL,
+  status             VARCHAR(40) NOT NULL,
+  numero             VARCHAR(40) NULL,
+  codigo_validacao   VARCHAR(100) NULL,
+  valor              DECIMAL(10,2) NULL,
+  data_emissao       DATE NULL,
+  pdf_url            VARCHAR(500) NULL,
+  xml_url            VARCHAR(500) NULL,
+  motivo_erro        VARCHAR(500) NULL,
+  email_enviado_em   TIMESTAMP NULL,
+  created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_notas_fiscais_empresa ON notas_fiscais(empresa_id);
+CREATE INDEX idx_notas_fiscais_payment ON notas_fiscais(asaas_payment_id);
+
+-- Eventos de webhook do Asaas já processados (entrega "pelo menos uma vez").
+CREATE TABLE asaas_eventos (
+  id          VARCHAR(100) PRIMARY KEY,
+  evento      VARCHAR(60) NOT NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE INDEX idx_asaas_eventos_created ON asaas_eventos(created_at);
 
 CREATE INDEX idx_licencas_empresa ON licencas(empresa_id);
 CREATE INDEX idx_contratos_empresa ON contratos(empresa_id);

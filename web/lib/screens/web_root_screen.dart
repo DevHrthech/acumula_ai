@@ -9,6 +9,7 @@ import 'web_postar_promo_screen.dart';
 import 'web_relatorio_clientes_screen.dart';
 import 'web_configuracoes_screen.dart';
 import 'web_aprovacao_screen.dart';
+import 'web_assinatura_screen.dart';
 
 class WebRootScreen extends StatefulWidget {
   const WebRootScreen({super.key});
@@ -47,6 +48,8 @@ class _WebRootScreenState extends State<WebRootScreen> {
             return WebRelatorioClientesScreen(onSelect: _select);
           case AdminSection.configuracoes:
             return WebConfiguracoesScreen(onSelect: _select);
+          case AdminSection.assinatura:
+            return WebAssinaturaScreen(onSelect: _select);
         }
       },
     );

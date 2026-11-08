@@ -8,7 +8,11 @@ const bcrypt = require('bcryptjs');
 const cnpjUtil = require('../utils/cnpj');
 const { gerarCodigoLojaUnico } = require('../utils/codigoLoja');
 const { primeiroErroTexto } = require('../utils/validar');
-const { paraData } = require('../utils/data');
+const { paraData, hojeBrasilia } = require('../utils/data');
+const { garantirAssinatura, alterarFormaPagamento } = require('../utils/assinatura');
+const { FORMAS_PAGAMENTO } = require('../utils/trial');
+const asaas = require('../utils/asaas');
+const { STATUS_ABERTOS, situacaoFinanceira, cobrancaAtrasada } = require('../utils/financeiro');
 
 const router = express.Router();
 router.use(authAdmin);
@@ -38,15 +42,42 @@ router.get('/me', asyncHandler(async (req, res) => {
 router.get('/empresas', asyncHandler(async (req, res) => {
   const empresas = await prisma.empresa.findMany({
     orderBy: { created_at: 'desc' },
-    include: { licencas: { orderBy: { created_at: 'desc' }, take: 1 } },
+    include: { licencas: { orderBy: { created_at: 'desc' }, take: 1, include: { plano: true } } },
   });
+
+  // Faturas em aberto das licenças atuais: a mais antiga de cada empresa vira
+  // `fatura_aberta` (o que ela precisa pagar agora, ou o que está atrasado).
+  const idsLicencas = empresas.flatMap((e) => e.licencas.map((l) => l.id));
+  const abertas = idsLicencas.length
+    ? await prisma.cobranca.findMany({
+        where: { licenca_id: { in: idsLicencas }, status: { in: STATUS_ABERTOS } },
+        orderBy: { data_vencimento: 'asc' },
+      })
+    : [];
+  const abertaPorLicenca = new Map();
+  for (const c of abertas) {
+    if (!abertaPorLicenca.has(c.licenca_id)) abertaPorLicenca.set(c.licenca_id, c);
+  }
+  const hoje = hojeBrasilia();
 
   const resultado = empresas.map((empresa) => {
     const [licencaAtual] = empresa.licencas;
+    const aberta = licencaAtual ? abertaPorLicenca.get(licencaAtual.id) : null;
     return {
       ...sanitizarEmpresa(empresa),
       licencas: undefined,
       licenca_status: licencaAtual ? statusEfetivo(licencaAtual) : null,
+      situacao_financeira: situacaoFinanceira(licencaAtual),
+      plano_nome: licencaAtual?.plano.nome ?? null,
+      forma_pagamento: licencaAtual?.forma_pagamento ?? null,
+      licenca_vencimento: licencaAtual?.data_vencimento ?? null,
+      fatura_aberta: aberta
+        ? {
+            valor: Number(aberta.valor),
+            data_vencimento: aberta.data_vencimento,
+            atrasada: cobrancaAtrasada(aberta, hoje),
+          }
+        : null,
     };
   });
 
@@ -142,10 +173,22 @@ router.get('/empresas/:id', asyncHandler(async (req, res) => {
   }
 
   const licencas = empresa.licencas.map((l) => ({ ...l, status_efetivo: statusEfetivo(l) }));
+  const cobrancas = await prisma.cobranca.findMany({
+    where: { empresa_id: id },
+    orderBy: { data_vencimento: 'desc' },
+    take: 24,
+  });
+  const hoje = hojeBrasilia();
 
   res.json({
     ...sanitizarEmpresa(empresa),
     licencas,
+    situacao_financeira: situacaoFinanceira(empresa.licencas[0]),
+    cobrancas: cobrancas.map((c) => ({
+      ...c,
+      valor: Number(c.valor),
+      atrasada: STATUS_ABERTOS.includes(c.status) && cobrancaAtrasada(c, hoje),
+    })),
     contratos: empresa.contratos,
     empresa_pai: empresa.empresa_pai ? sanitizarEmpresa(empresa.empresa_pai) : null,
     filiais: empresa.filiais.map(sanitizarEmpresa),
@@ -325,7 +368,7 @@ router.patch('/planos/:id', asyncHandler(async (req, res) => {
 
 router.post('/empresas/:id/licencas', asyncHandler(async (req, res) => {
   const empresaId = req.params.id;
-  const { planoId, dataInicio, dataVencimento, diasTolerancia } = req.body || {};
+  const { planoId, dataInicio, dataVencimento, diasTolerancia, formaPagamento, criarAssinatura } = req.body || {};
 
   if (!planoId || !dataInicio || !dataVencimento) {
     return res.status(400).json({ erro: 'Campos obrigatórios: planoId, dataInicio, dataVencimento.' });
@@ -342,6 +385,10 @@ router.post('/empresas/:id/licencas', asyncHandler(async (req, res) => {
 
   if (diasTolerancia !== undefined && (!Number.isInteger(diasTolerancia) || diasTolerancia < 0)) {
     return res.status(400).json({ erro: 'diasTolerancia deve ser um inteiro >= 0.' });
+  }
+
+  if (formaPagamento !== undefined && !FORMAS_PAGAMENTO.includes(formaPagamento)) {
+    return res.status(400).json({ erro: 'formaPagamento deve ser PIX ou CARTAO_RECORRENTE.' });
   }
 
   const empresa = await prisma.empresa.findUnique({ where: { id: empresaId } });
@@ -364,10 +411,24 @@ router.post('/empresas/:id/licencas', asyncHandler(async (req, res) => {
       data_inicio: inicio,
       data_vencimento: vencimento,
       dias_tolerancia: diasTolerancia ?? 5,
+      // Pix é o padrão (mesmo das licenças antigas); a cobrança no Asaas só
+      // começa se `criarAssinatura` vier true (ou pelo botão da licença).
+      forma_pagamento: formaPagamento || 'PIX',
     },
   });
 
-  res.status(201).json({ ...licenca, status_efetivo: statusEfetivo(licenca) });
+  let aviso;
+  if (criarAssinatura === true) {
+    try {
+      await garantirAssinatura(licenca.id);
+    } catch (err) {
+      console.error('Falha ao criar assinatura no Asaas:', err.message);
+      aviso = `Licença criada, mas a assinatura no Asaas não foi criada: ${err.message}`;
+    }
+  }
+
+  const atual = await prisma.licenca.findUnique({ where: { id: licenca.id } });
+  res.status(201).json({ ...atual, status_efetivo: statusEfetivo(atual), ...(aviso && { aviso }) });
 }));
 
 router.patch('/licencas/:id', asyncHandler(async (req, res) => {
@@ -395,16 +456,83 @@ router.patch('/licencas/:id', asyncHandler(async (req, res) => {
     return res.status(400).json({ erro: 'diasTolerancia deve ser um inteiro >= 0.' });
   }
 
-  const licenca = await prisma.licenca.update({
-    where: { id },
-    data: {
-      ...(status && { status }),
-      ...(novoVencimento && { data_vencimento: novoVencimento }),
-      ...(diasTolerancia !== undefined && { dias_tolerancia: diasTolerancia }),
-    },
+  // Cancelar a licença também cancela a assinatura no Asaas — senão a empresa
+  // continuaria sendo cobrada. Se o Asaas recusar, nada é alterado.
+  const cancelando = status === 'CANCELADA' && licencaAtual.status !== 'CANCELADA';
+  if (cancelando && licencaAtual.gateway_assinatura_id) {
+    try {
+      await asaas.cancelarAssinatura(licencaAtual.gateway_assinatura_id);
+    } catch (err) {
+      console.error('Falha ao cancelar assinatura no Asaas:', err.message);
+      return res.status(502).json({ erro: `Não foi possível cancelar a assinatura no Asaas: ${err.message}` });
+    }
+  }
+
+  const licenca = await prisma.$transaction(async (tx) => {
+    if (cancelando && licencaAtual.gateway_assinatura_id) {
+      // As faturas em aberto somem junto com a assinatura no Asaas.
+      await tx.cobranca.updateMany({
+        where: { licenca_id: id, status: { in: STATUS_ABERTOS } },
+        data: { status: 'DELETED' },
+      });
+    }
+    return tx.licenca.update({
+      where: { id },
+      data: {
+        ...(status && { status }),
+        ...(novoVencimento && { data_vencimento: novoVencimento }),
+        ...(diasTolerancia !== undefined && { dias_tolerancia: diasTolerancia }),
+        // Assinatura cancelada: libera o campo para uma nova ao reativar.
+        ...(cancelando && { gateway_assinatura_id: null }),
+      },
+    });
   });
 
-  res.json({ ...licenca, status_efetivo: statusEfetivo(licenca) });
+  // Reativação: se a licença volta a ATIVA sem assinatura e tem forma de
+  // pagamento, cria uma nova assinatura (1ª cobrança no dia seguinte ao
+  // vencimento). Falha não desfaz a reativação — vira aviso.
+  let aviso;
+  if (status === 'ATIVA' && licencaAtual.status === 'CANCELADA' && licenca.forma_pagamento && !licenca.gateway_assinatura_id) {
+    try {
+      await garantirAssinatura(id);
+    } catch (err) {
+      console.error('Falha ao recriar assinatura no Asaas:', err.message);
+      aviso = `Licença reativada, mas a assinatura no Asaas não foi criada: ${err.message}`;
+    }
+  }
+
+  const atual = await prisma.licenca.findUnique({ where: { id } });
+  res.json({ ...atual, status_efetivo: statusEfetivo(atual), ...(aviso && { aviso }) });
+}));
+
+// Troca a forma de pagamento (Pix <-> cartão recorrente) da licença.
+router.put('/licencas/:id/forma-pagamento', asyncHandler(async (req, res) => {
+  try {
+    const { licenca, aviso } = await alterarFormaPagamento(req.params.id, (req.body || {}).formaPagamento);
+    res.json({ ...licenca, status_efetivo: statusEfetivo(licenca), ...(aviso && { aviso }) });
+  } catch (err) {
+    if (!err.status) throw err;
+    res.status(err.status).json({ erro: err.message });
+  }
+}));
+
+// Cria (ou refaz, se a criação no cadastro falhou) a assinatura da licença no
+// Asaas. Idempotente: se já existe, devolve a existente.
+router.post('/licencas/:id/assinatura', asyncHandler(async (req, res) => {
+  const existe = await prisma.licenca.findUnique({ where: { id: req.params.id } });
+  if (!existe) {
+    return res.status(404).json({ erro: 'Licença não encontrada.' });
+  }
+  if (!existe.forma_pagamento) {
+    return res.status(400).json({ erro: 'A licença não tem forma de pagamento (PIX ou CARTAO_RECORRENTE) definida.' });
+  }
+  try {
+    const licenca = await garantirAssinatura(req.params.id);
+    res.json({ licencaId: licenca.id, assinaturaId: licenca.gateway_assinatura_id });
+  } catch (err) {
+    console.error('Falha ao criar assinatura no Asaas:', err.message);
+    res.status(502).json({ erro: `Não foi possível criar a assinatura no Asaas: ${err.message}` });
+  }
 }));
 
 // ---- Contratos ----------------------------------------------------------

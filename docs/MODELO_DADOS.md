@@ -20,6 +20,11 @@ A empresa cliente (Empresa X) que contrata o ACUMULAAI.
 | icone_url, logo_qrcode_url, logo_promocao_url | caminho/URL das imagens de marca (binário fica no servidor, nunca no banco — ver [SPEC.md](SPEC.md) seção 7) |
 | cor_principal, cor_destaque | identidade visual (`#RRGGBB`), refletida no cartão do cliente |
 | nome_programa, mensagem_boas_vindas, mensagem_resgate, texto_botao_resgate | textos personalizados que o cliente final vê no app |
+| asaas_customer_id | id do cliente espelhado no Asaas (`cus_...`); nulo = ainda não replicado |
+| trial_usado_em | quando o trial de 15 dias foi concedido (uma única vez por empresa) |
+| aceite_termos_em, aceite_termos_versao | aceite, no auto-cadastro, de que a cobrança é processada via gateway Asaas |
+
+Em `licencas`: `forma_pagamento` (`PIX` \| `CARTAO_RECORRENTE`, escolhida no auto-cadastro) e `em_trial` (licença de teste gratuita de 15 dias). O auto-cadastro cria empresa + licença de trial juntas (`gateway_provedor = 'ASAAS'`).
 | created_at / updated_at | |
 
 ### `clientes`
@@ -124,7 +129,7 @@ Uma empresa pode apontar `empresa_pai_id` para outra empresa, formando um agrupa
 Ver [SPEC.md](SPEC.md) seção 11 para o contexto completo (licenciamento/bloqueio por inadimplência).
 
 ### `admins_2rl`
-Usuário interno da 2RL (equipe comercial/suporte). Sem autocadastro — criado só via `server/scripts/seed-admin.js`.
+Usuário interno da 2RL (equipe comercial/suporte). Sem autocadastro — criado só via `server/scripts/seed-admin.js`. `token_valido_desde` (nulo por padrão): tokens emitidos antes dessa data deixam de valer — "Sair do Painel" grava `now()` (derruba também o acesso lembrado em outros aparelhos).
 
 ### `planos`
 Plano comercial oferecido às empresas-clientes: `nome`, `valor_mensal`, `descricao`, `ativo`.

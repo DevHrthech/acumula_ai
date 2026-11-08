@@ -13,6 +13,7 @@ enum AdminSection {
   postar,
   relatorio,
   configuracoes,
+  assinatura,
 }
 
 class AdminSidebar extends StatelessWidget {
@@ -115,6 +116,12 @@ class AdminSidebar extends StatelessWidget {
                     label: 'Configurações',
                     selected: current == AdminSection.configuracoes,
                     onTap: () => onSelect(AdminSection.configuracoes),
+                  ),
+                  _NavItem(
+                    icon: Icons.credit_card_outlined,
+                    label: 'Assinatura',
+                    selected: current == AdminSection.assinatura,
+                    onTap: () => onSelect(AdminSection.assinatura),
                   ),
                 ],
               ),

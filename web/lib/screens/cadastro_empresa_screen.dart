@@ -29,6 +29,40 @@ class _CadastroEmpresaScreenState extends State<CadastroEmpresaScreen> {
   bool _carregando = false;
   String? _erro;
 
+  // Plano e forma de pagamento (cobrança via gateway Asaas, trial de 15 dias).
+  List<Map<String, dynamic>> _planos = [];
+  bool _carregandoPlanos = true;
+  String? _planoId;
+  String _formaPagamento = 'PIX';
+  bool _aceiteTermos = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarPlanos();
+  }
+
+  Future<void> _carregarPlanos() async {
+    try {
+      final lista = await EmpresaApi().listarPlanosPublicos();
+      if (!mounted) return;
+      setState(() {
+        _planos = lista.cast<Map<String, dynamic>>();
+        _planoId = _planos.isNotEmpty ? _planos.first['id'] as String : null;
+        _carregandoPlanos = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _carregandoPlanos = false);
+    }
+  }
+
+  /// `valor_mensal` chega como texto decimal ("99.90").
+  String _valorBR(dynamic valor) {
+    final v = double.tryParse('$valor') ?? 0;
+    return 'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';
+  }
+
   @override
   void dispose() {
     _nomeController.dispose();
@@ -61,6 +95,14 @@ class _CadastroEmpresaScreenState extends State<CadastroEmpresaScreen> {
       setState(() => _erro = 'A meta deve ser um número inteiro.');
       return;
     }
+    if (_planoId == null) {
+      setState(() => _erro = 'Escolha um plano.');
+      return;
+    }
+    if (!_aceiteTermos) {
+      setState(() => _erro = 'Aceite que os pagamentos serão processados via gateway Asaas.');
+      return;
+    }
 
     setState(() {
       _carregando = true;
@@ -77,6 +119,9 @@ class _CadastroEmpresaScreenState extends State<CadastroEmpresaScreen> {
         categoria: _categoriaController.text.trim().isEmpty ? null : _categoriaController.text.trim(),
         tipoFidelidade: _tipoFidelidade,
         metaFidelidade: meta,
+        planoId: _planoId!,
+        formaPagamento: _formaPagamento,
+        aceiteTermos: _aceiteTermos,
       );
       if (!mounted) return;
       EmpresaConfigScope.of(context).carregarDe(session.empresa!);
@@ -280,6 +325,98 @@ class _CadastroEmpresaScreenState extends State<CadastroEmpresaScreen> {
                                 children: [Expanded(child: mecanica), const SizedBox(width: 16), Expanded(child: meta)],
                               );
                             },
+                          ),
+                          const SizedBox(height: 28),
+                          Divider(color: theme.border),
+                          const SizedBox(height: 16),
+                          _Rotulo('Plano *', theme: theme),
+                          const SizedBox(height: 8),
+                          if (_carregandoPlanos)
+                            const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)))
+                          else if (_planos.isEmpty)
+                            Text('Nenhum plano disponível no momento. Tente novamente mais tarde.',
+                                style: TextStyle(fontSize: 13, color: theme.textMuted))
+                          else
+                            DropdownButtonFormField<String>(
+                              initialValue: _planoId,
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: theme.surface,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                                border: _outlineBorder(theme),
+                                enabledBorder: _outlineBorder(theme),
+                                focusedBorder: _outlineBorder(theme, color: theme.primary, width: 1.5),
+                              ),
+                              items: [
+                                for (final p in _planos)
+                                  DropdownMenuItem(
+                                    value: p['id'] as String,
+                                    child: Text('${p['nome']} — ${_valorBR(p['valor_mensal'])}/mês', overflow: TextOverflow.ellipsis),
+                                  ),
+                              ],
+                              onChanged: (v) => setState(() => _planoId = v),
+                            ),
+                          const SizedBox(height: 20),
+                          _Rotulo('Forma de pagamento *', theme: theme),
+                          const SizedBox(height: 8),
+                          RadioGroup<String>(
+                            groupValue: _formaPagamento,
+                            onChanged: (v) => setState(() => _formaPagamento = v ?? _formaPagamento),
+                            child: Column(
+                              children: [
+                                RadioListTile<String>(
+                                  value: 'PIX',
+                                  contentPadding: EdgeInsets.zero,
+                                  dense: true,
+                                  activeColor: theme.primary,
+                                  title: Text('Pix', style: TextStyle(color: theme.textDark)),
+                                ),
+                                RadioListTile<String>(
+                                  value: 'CARTAO_RECORRENTE',
+                                  contentPadding: EdgeInsets.zero,
+                                  dense: true,
+                                  activeColor: theme.primary,
+                                  title: Text('Cartão de crédito recorrente', style: TextStyle(color: theme.textDark)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: theme.primary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.card_giftcard_outlined, size: 20, color: theme.primary),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Teste grátis por 15 dias, uma única vez por empresa. Nenhuma cobrança é feita agora; '
+                                    'ao fim do período, a mensalidade do plano escolhido é cobrada pela forma de pagamento selecionada.',
+                                    style: TextStyle(fontSize: 12.5, color: theme.textDark),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          CheckboxListTile(
+                            value: _aceiteTermos,
+                            onChanged: (v) => setState(() => _aceiteTermos = v ?? false),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            activeColor: theme.primary,
+                            title: Text(
+                              'Estou ciente de que os pagamentos da mensalidade serão processados via gateway de pagamento Asaas '
+                              '(Pix ou cartão de crédito recorrente), e autorizo o envio dos dados da minha empresa (nome, CNPJ e e-mail) ao Asaas para esse fim. *',
+                              style: TextStyle(fontSize: 12.5, color: theme.textDark),
+                            ),
                           ),
                           if (_erro != null) ...[
                             const SizedBox(height: 16),

@@ -6,6 +6,9 @@ const prisma = require('../prisma');
 const authEmpresa = require('../middleware/authEmpresa');
 const asyncHandler = require('../utils/asyncHandler');
 const { primeiroErroTexto } = require('../utils/validar');
+const { statusEfetivo } = require('../utils/licenca');
+const { alterarFormaPagamento } = require('../utils/assinatura');
+const { notaAtiva } = require('../utils/nota');
 
 const router = express.Router();
 
@@ -15,6 +18,78 @@ function sanitizarEmpresa(empresa) {
   const { senha_hash, ...resto } = empresa;
   return resto;
 }
+
+// Situação da assinatura da empresa: licença atual (trial ou paga), forma de
+// pagamento e as cobranças mensais com o link da fatura no Asaas.
+router.get('/me/assinatura', authEmpresa, asyncHandler(async (req, res) => {
+  const licenca = await prisma.licenca.findFirst({
+    where: { empresa_id: req.empresaId },
+    orderBy: { created_at: 'desc' },
+    include: { plano: { select: { nome: true, valor_mensal: true } } },
+  });
+  if (!licenca) {
+    return res.json({ licenca: null, cobrancas: [] });
+  }
+  const cobrancas = await prisma.cobranca.findMany({
+    where: { licenca_id: licenca.id },
+    orderBy: { data_vencimento: 'desc' },
+    take: 12,
+    select: { id: true, asaas_payment_id: true, valor: true, forma_pagamento: true, status: true, data_vencimento: true, data_pagamento: true, invoice_url: true },
+  });
+
+  // Nota fiscal de cada fatura (PDF/XML), quando já foi emitida. Notas
+  // canceladas ou com erro não aparecem para a empresa.
+  const notas = await prisma.notaFiscal.findMany({
+    where: { empresa_id: req.empresaId, asaas_payment_id: { in: cobrancas.map((c) => c.asaas_payment_id) }, status: { in: ['AUTHORIZED', 'CANCELLATION_DENIED'] } },
+    orderBy: { created_at: 'desc' },
+    select: { asaas_payment_id: true, numero: true, data_emissao: true, pdf_url: true, xml_url: true },
+  });
+  const notaPorPagamento = new Map();
+  for (const n of notas) {
+    if (!notaPorPagamento.has(n.asaas_payment_id)) {
+      const { asaas_payment_id, ...resto } = n;
+      notaPorPagamento.set(asaas_payment_id, resto);
+    }
+  }
+  const cobrancasComNota = cobrancas.map(({ asaas_payment_id, ...c }) => ({
+    ...c,
+    nota_fiscal: notaPorPagamento.get(asaas_payment_id) || null,
+  }));
+
+  res.json({
+    licenca: {
+      plano: licenca.plano,
+      forma_pagamento: licenca.forma_pagamento,
+      em_trial: licenca.em_trial,
+      data_inicio: licenca.data_inicio,
+      data_vencimento: licenca.data_vencimento,
+      status_efetivo: statusEfetivo(licenca),
+      assinatura_ativa: Boolean(licenca.gateway_assinatura_id),
+    },
+    cobrancas: cobrancasComNota,
+    // false enquanto a emissão automática não está ligada no servidor: o painel
+    // não promete "emitindo…" para faturas pagas sem nota.
+    nota_fiscal_ativa: notaAtiva(),
+  });
+}));
+
+// A empresa escolhe/troca a própria forma de pagamento (Pix ou cartão recorrente).
+router.put('/me/assinatura/forma-pagamento', authEmpresa, asyncHandler(async (req, res) => {
+  const licenca = await prisma.licenca.findFirst({
+    where: { empresa_id: req.empresaId },
+    orderBy: { created_at: 'desc' },
+  });
+  if (!licenca) {
+    return res.status(404).json({ erro: 'Sua conta ainda não tem uma licença.' });
+  }
+  try {
+    const r = await alterarFormaPagamento(licenca.id, (req.body || {}).formaPagamento);
+    res.json({ forma_pagamento: r.licenca.forma_pagamento, ...(r.aviso && { aviso: r.aviso }) });
+  } catch (err) {
+    if (!err.status) throw err;
+    res.status(err.status).json({ erro: err.message });
+  }
+}));
 
 router.get('/me', authEmpresa, asyncHandler(async (req, res) => {
   const empresa = await prisma.empresa.findUnique({ where: { id: req.empresaId } });

@@ -36,6 +36,13 @@ enum StatusLicenca {
   CANCELADA
 }
 
+/// Como a empresa paga a mensalidade (cobrança processada pelo gateway Asaas).
+/// Escolhida no auto-cadastro; boleto não é oferecido.
+enum FormaPagamento {
+  PIX
+  CARTAO_RECORRENTE
+}
+
 enum StatusContrato {
   RASCUNHO
   AGUARDANDO_ASSINATURA
@@ -70,6 +77,14 @@ model Empresa {
   mensagem_boas_vindas  String?          @db.VarChar(255)
   mensagem_resgate      String?          @db.VarChar(255)
   texto_botao_resgate   String           @default("Resgatar recompensa") @db.VarChar(60)
+  /// Cliente espelhado no Asaas. Nulo = ainda não replicado (a replicação é
+  /// refeita na hora de gerar a primeira cobrança).
+  asaas_customer_id     String?          @db.VarChar(50)
+  /// Trial de 15 dias concedido uma única vez por empresa (CNPJ é único).
+  trial_usado_em        DateTime?        @db.Timestamp(0)
+  /// Aceite do termo de cobrança via gateway Asaas no auto-cadastro.
+  aceite_termos_em      DateTime?        @db.Timestamp(0)
+  aceite_termos_versao  String?          @db.VarChar(20)
   created_at            DateTime         @default(now()) @db.Timestamp(0)
   updated_at            DateTime         @default(now()) @updatedAt @db.Timestamp(0)
 
@@ -100,6 +115,9 @@ model AdminInterno {
   email       String   @unique @db.VarChar(150)
   senha_hash  String   @db.VarChar(255)
   created_at  DateTime @default(now()) @db.Timestamp(0)
+  /// Tokens emitidos antes desta data deixam de valer ("Sair" do painel
+  /// derruba também os aparelhos que estavam com "Lembrar acesso").
+  token_valido_desde DateTime? @db.Timestamp(0)
 
   @@map("admins_2rl")
 }
@@ -139,15 +157,85 @@ model Licenca {
   dias_tolerancia       Int            @default(5) @db.UnsignedInt
   gateway_provedor      String?        @db.VarChar(50)
   gateway_assinatura_id String?        @db.VarChar(150)
+  forma_pagamento       FormaPagamento?
+  /// Licença de teste gratuita (15 dias, uma vez por empresa).
+  em_trial              Boolean        @default(false)
   created_at            DateTime       @default(now()) @db.Timestamp(0)
   updated_at            DateTime       @default(now()) @updatedAt @db.Timestamp(0)
 
   empresa               Empresa        @relation(fields: [empresa_id], references: [id])
   plano                 Plano          @relation(fields: [plano_id], references: [id])
   contratos             Contrato[]
+  cobrancas             Cobranca[]
 
   @@index([empresa_id])
   @@map("licencas")
+}
+
+/// Cobrança mensal gerada pela assinatura da licença no Asaas (espelho de
+/// `payment`). É atualizada pelo webhook (`POST /webhooks/asaas`).
+/// `licenca_estendida_em` marca que o pagamento já renovou a licença — o
+/// Asaas manda CONFIRMED e depois RECEIVED para o mesmo pagamento, e a
+/// renovação só pode acontecer uma vez.
+model Cobranca {
+  id                    String    @id @default(uuid()) @db.VarChar(36)
+  licenca_id            String    @db.VarChar(36)
+  empresa_id            String    @db.VarChar(36)
+  asaas_payment_id      String    @unique @db.VarChar(50)
+  asaas_subscription_id String?   @db.VarChar(50)
+  valor                 Decimal   @db.Decimal(10, 2)
+  forma_pagamento       String?   @db.VarChar(30)
+  status                String    @db.VarChar(40)
+  data_vencimento       DateTime  @db.Date
+  data_pagamento        DateTime? @db.Date
+  invoice_url           String?   @db.VarChar(500)
+  licenca_estendida_em  DateTime? @db.Timestamp(0)
+  created_at            DateTime  @default(now()) @db.Timestamp(0)
+  updated_at            DateTime  @default(now()) @updatedAt @db.Timestamp(0)
+
+  licenca               Licenca   @relation(fields: [licenca_id], references: [id])
+
+  @@index([licenca_id])
+  @@index([empresa_id])
+  @@map("cobrancas")
+}
+
+/// Nota fiscal de serviço (NFS-e) emitida pelo Asaas para uma cobrança paga
+/// (espelho de `invoice`). Criada/atualizada pelos eventos INVOICE_* do webhook.
+/// `pdf_url` (DANFSe) e `xml_url` só existem depois da autorização.
+/// `email_enviado_em` garante que a empresa receba o e-mail uma única vez.
+model NotaFiscal {
+  id                 String    @id @default(uuid()) @db.VarChar(36)
+  empresa_id         String    @db.VarChar(36)
+  licenca_id         String    @db.VarChar(36)
+  asaas_invoice_id   String    @unique @db.VarChar(50)
+  asaas_payment_id   String    @db.VarChar(50)
+  status             String    @db.VarChar(40)
+  numero             String?   @db.VarChar(40)
+  codigo_validacao   String?   @db.VarChar(100)
+  valor              Decimal?  @db.Decimal(10, 2)
+  data_emissao       DateTime? @db.Date
+  pdf_url            String?   @db.VarChar(500)
+  xml_url            String?   @db.VarChar(500)
+  motivo_erro        String?   @db.VarChar(500)
+  email_enviado_em   DateTime? @db.Timestamp(0)
+  created_at         DateTime  @default(now()) @db.Timestamp(0)
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamp(0)
+
+  @@index([empresa_id])
+  @@index([asaas_payment_id])
+  @@map("notas_fiscais")
+}
+
+/// Eventos de webhook do Asaas já recebidos. O Asaas entrega "pelo menos
+/// uma vez": o `id` do evento (chave primária) permite ignorar repetições.
+model AsaasEvento {
+  id          String   @id @db.VarChar(100)
+  evento      String   @db.VarChar(60)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+
+  @@index([created_at])
+  @@map("asaas_eventos")
 }
 
 /// Contrato entre a 2RL e a empresa-cliente. `documento_url` recebe o PDF

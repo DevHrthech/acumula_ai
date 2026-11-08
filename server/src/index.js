@@ -4,10 +4,13 @@ const path = require('path');
 const helmet = require('helmet');
 
 const authEmpresaRoutes = require('./routes/authEmpresa');
+const planosRoutes = require('./routes/planos');
+const webhooksRoutes = require('./routes/webhooks');
 const empresaRoutes = require('./routes/empresa');
 const authAdminRoutes = require('./routes/authAdmin');
 const adminRoutes = require('./routes/admin');
 const adminMonitoramentoRoutes = require('./routes/adminMonitoramento');
+const adminFinanceiroRoutes = require('./routes/adminFinanceiro');
 const authClienteRoutes = require('./routes/authCliente');
 const clienteRoutes = require('./routes/cliente');
 const campanhasRoutes = require('./routes/campanhas');
@@ -38,6 +41,8 @@ app.use(criarCors());
 // levam timestamp, então cache longo é seguro.
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'), { maxAge: '7d', index: false }));
 app.use(express.json({ limit: '100kb' })); // nenhuma rota hoje precisa de payload grande (sem upload de arquivo via JSON)
+// Webhook do Asaas antes do limite geral: tem limite e autenticação (token) próprios.
+app.use('/webhooks', webhooksRoutes);
 app.use(limiteGeral);
 app.use(logRequisicao);
 
@@ -46,10 +51,12 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/auth/empresa', authEmpresaRoutes);
+app.use('/planos', planosRoutes);
 app.use('/empresas', empresaRoutes);
 app.use('/auth/admin', authAdminRoutes);
 app.use('/admin', adminRoutes);
 app.use('/admin/monitoramento', adminMonitoramentoRoutes);
+app.use('/admin/financeiro', adminFinanceiroRoutes);
 app.use('/auth/cliente', authClienteRoutes);
 app.use('/clientes', clienteRoutes);
 app.use('/empresas/me/campanhas', campanhasRoutes);

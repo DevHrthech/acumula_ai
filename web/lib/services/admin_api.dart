@@ -13,7 +13,8 @@ class AdminApiException implements Exception {
 /// planos, licenças e contratos). Fala direto com a API em produção —
 /// não há ambiente de staging separado ainda.
 class AdminApi {
-  static const String baseUrl = 'https://api.acumulaai.com.br';
+  // Em desenvolvimento, aponte para a API local: --dart-define=API_URL=http://localhost:3055
+  static const String baseUrl = String.fromEnvironment('API_URL', defaultValue: 'https://api.acumulaai.com.br');
 
   /// Chamado quando uma requisição autenticada volta 401 (token vencido): o
   /// painel limpa a sessão e volta pro login.
@@ -38,13 +39,18 @@ class AdminApi {
     throw AdminApiException(erro, status: res.statusCode);
   }
 
-  Future<Map<String, dynamic>> login(String email, String senha) async {
+  Future<Map<String, dynamic>> login(String email, String senha, {bool lembrar = false}) async {
     final res = await http.post(
       Uri.parse('$baseUrl/auth/admin/login'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'senha': senha}),
+      body: jsonEncode({'email': email, 'senha': senha, 'lembrar': lembrar}),
     );
     return await _handle(res) as Map<String, dynamic>;
+  }
+
+  /// Invalida no servidor os tokens deste admin (inclusive o "lembrado").
+  Future<void> logout() async {
+    await http.post(Uri.parse('$baseUrl/auth/admin/logout'), headers: _headers);
   }
 
   Future<Map<String, dynamic>> me() async {
@@ -55,6 +61,18 @@ class AdminApi {
   Future<List<dynamic>> listarEmpresas() async {
     final res = await http.get(Uri.parse('$baseUrl/admin/empresas'), headers: _headers);
     return await _handle(res) as List<dynamic>;
+  }
+
+  /// Dashboard financeiro. [periodo]: `mes`, `3m`, `6m`, `12m` ou `ano`.
+  Future<Map<String, dynamic>> financeiro(String periodo) async {
+    final res = await http.get(Uri.parse('$baseUrl/admin/financeiro?periodo=$periodo'), headers: _headers);
+    return await _handle(res) as Map<String, dynamic>;
+  }
+
+  /// Cria (ou refaz) a assinatura da licença no Asaas.
+  Future<Map<String, dynamic>> criarAssinaturaAsaas(String licencaId) async {
+    final res = await http.post(Uri.parse('$baseUrl/admin/licencas/$licencaId/assinatura'), headers: _headers);
+    return await _handle(res) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> detalheEmpresa(String id) async {
@@ -153,6 +171,8 @@ class AdminApi {
     required DateTime dataInicio,
     required DateTime dataVencimento,
     int diasTolerancia = 5,
+    String formaPagamento = 'PIX',
+    bool criarAssinatura = false,
   }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/admin/empresas/$empresaId/licencas'),
@@ -162,7 +182,19 @@ class AdminApi {
         'dataInicio': dataInicio.toIso8601String(),
         'dataVencimento': dataVencimento.toIso8601String(),
         'diasTolerancia': diasTolerancia,
+        'formaPagamento': formaPagamento,
+        'criarAssinatura': criarAssinatura,
       }),
+    );
+    return await _handle(res) as Map<String, dynamic>;
+  }
+
+  /// Troca a forma de pagamento da licença (`PIX` ou `CARTAO_RECORRENTE`).
+  Future<Map<String, dynamic>> alterarFormaPagamento(String licencaId, String forma) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/admin/licencas/$licencaId/forma-pagamento'),
+      headers: _headers,
+      body: jsonEncode({'formaPagamento': forma}),
     );
     return await _handle(res) as Map<String, dynamic>;
   }

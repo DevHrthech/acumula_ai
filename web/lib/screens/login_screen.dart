@@ -21,6 +21,19 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _erro;
 
   @override
+  void initState() {
+    super.initState();
+    // Link da página inicial (acumulaai.com.br → /app/?cadastro=1): abre direto
+    // o cadastro. Voltar leva ao login normal.
+    if (Uri.base.queryParameters['cadastro'] == '1') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CadastroEmpresaScreen()));
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();

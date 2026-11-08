@@ -90,7 +90,7 @@ Empresas (geralmente pequeno/médio varejo e serviços) querem fidelizar cliente
 - [ ] A marcação da compra pode ter valor monetário mínimo, ou é sempre "1 compra = 1 marcação"?
 - [ ] Cliente pode perder/expirar marcações (validade do cartão)?
 - [x] Cadastro/autenticação do cliente final no app: **CPF + senha** — mesmo CPF usado pela empresa na Web para marcar compras, evitando duplicidade de identificação.
-- [x] **Modelo de monetização da 2RL sobre a empresa cliente — decidido (2026-09-17):** assinatura recorrente por plano, com contrato formal e licença de uso que bloqueia acesso em caso de inadimplência. Gateway de pagamento específico ainda não escolhido. Ver seção 11.
+- [x] **Modelo de monetização da 2RL sobre a empresa cliente — decidido (2026-09-17):** assinatura recorrente por plano, com contrato formal e licença de uso que bloqueia acesso em caso de inadimplência. Gateway de pagamento específico ainda não escolhido. Ver seção 11. **Atualização 2026-10-27: gateway = Asaas (Pix + cartão recorrente), integrado e publicado — ver seção 21.**
 - [x] **Multi-loja / filiais — decidido e implementado (2026-09-19):** cada unidade/filial continua sendo uma linha independente em `empresas`, com login, configuração, mecânica e saldo de clientes 100% próprios (nada compartilhado). Agrupamento comercial simples via campo `empresa_pai_id` (auto-referência em `empresas`, sem entidade nova), controlado só pelo admin interno 2RL. Detalhes completos na seção 16.
 - [ ] Nome/identidade do app para a loja de aplicativos, contas de desenvolvedor (Apple/Google) já existentes? — **Atualização 2026-10-09:** nome definido ("Acumula Aí – Fidelidade", pacote `br.com.acumulaai.cliente`); a conta Google Play ainda precisa ser criada/verificada pelo responsável (passo a passo em [dev/PLAY_STORE.md](dev/PLAY_STORE.md)); Apple/iOS segue fora de escopo.
 - [ ] Confirmar espaço em disco disponível no plano de hospedagem cPanel para armazenar as imagens de marca de todas as empresas.
@@ -217,7 +217,7 @@ Decisão do usuário (2026-09-17): além do produto em si, a 2RL precisa de um *
 - **Ator novo:** `AdminInterno` (equipe 2RL) — login próprio (`/auth/admin/login`), **sem rota pública de cadastro**; criado só via `server/scripts/seed-admin.js` (rodado manualmente, nunca exposto via HTTP).
 - **Licença bloqueia acesso por inadimplência com período de tolerância:** ao vencer (`Licenca.data_vencimento`), a empresa entra em estado `INADIMPLENTE` durante `dias_tolerancia` (padrão 5 dias); passado esse prazo, bloqueia **todo** o acesso da Empresa (login/API), não só ações específicas. O status "efetivo" é **calculado por data** (`server/src/utils/licenca.js`), não depende de um cron job — o campo `status` gravado só existe pra permitir override manual (`BLOQUEADA`/`CANCELADA` sempre prevalecem sobre o cálculo por data).
 - **Contrato com geração de documento + assinatura eletrônica** (decisão do usuário) — modelo `Contrato` já tem os campos (`documento_url`, `assinatura_provedor`, `assinatura_id`), mas a **integração de verdade com um provedor (Clicksign/D4Sign ou similar) ainda não foi escolhida** — por ora o ciclo de vida do contrato (`RASCUNHO` → `AGUARDANDO_ASSINATURA` → `ASSINADO`/`CANCELADO`) é atualizado manualmente pelo admin via API.
-- **Gateway de pagamento: ainda não escolhido** (usuário decidiu deixar em aberto) — schema modelado de forma agnóstica (`Licenca.gateway_provedor`/`gateway_assinatura_id` nulos até então); cobrança/renovação de licença é **manual** (admin atualiza `data_vencimento`/`status` via `PATCH /admin/licencas/:id`) até um gateway ser integrado.
+- **[Superado em 2026-10-27 — gateway escolhido e integrado: Asaas, ver seção 21.]** ~~Gateway de pagamento: ainda não escolhido~~ (usuário decidiu deixar em aberto) — schema modelado de forma agnóstica (`Licenca.gateway_provedor`/`gateway_assinatura_id` nulos até então); cobrança/renovação de licença é **manual** (admin atualiza `data_vencimento`/`status` via `PATCH /admin/licencas/:id`) até um gateway ser integrado.
 
 **Implementado e testado localmente (contra o banco de produção), aguardando aprovação/deploy:**
 - Schema: `AdminInterno`, `Plano`, `Licenca`, `Contrato` (ver `schema.prisma`/`schema.sql`), já aplicado no MySQL de produção via `prisma db push`.
@@ -239,7 +239,7 @@ Decisão do usuário (2026-09-17): além do produto em si, a 2RL precisa de um *
 
 **Também descoberto nesta rodada — CORS:** a API não tinha CORS habilitado; qualquer painel Web chamando-a de um domínio diferente (`localhost` em dev, ou os domínios de produção) era bloqueado pelo navegador. Adicionado `cors` no Express (`server/src/index.js`) com allowlist explícita (`acumulaai.com.br`, `admin.acumulaai.com.br`, `localhost:*`) — não usa cookies, só Bearer token, então o risco de CORS aberto é baixo, mas a allowlist evita chamadas de origens arbitrárias mesmo assim.
 
-**Ainda não construído:** geração automática de documento de contrato a partir de modelo, integração real com provedor de assinatura eletrônica, integração real com gateway de pagamento, e qualquer automação de cobrança recorrente (hoje é 100% manual pelo admin, via API/painel).
+**Ainda não construído:** geração automática de documento de contrato a partir de modelo e integração real com provedor de assinatura eletrônica. (Gateway de pagamento e cobrança recorrente: **construídos em 2026-10-26/27 — seção 21**; antes eram 100% manuais pelo admin.)
 
 ### Atualização — 2026-09-18: chaves primárias em UUID + monitoramento de uso da API
 
@@ -444,7 +444,7 @@ Backend testado via `curl` direto contra o servidor local (apontado pro banco re
 
 **Ainda não deployado em produção** — schema já foi aplicado no banco remoto (via `db push` local), mas o `server/src/routes/admin.js` novo e o build do `web/` (admin) ainda precisam do deploy manual via FTP + restart do Passenger, pendente de confirmação do usuário.
 
-**Em aberto (não resolvido nesta rodada, fora de escopo):** se a 2RL cobra por filial ou só da matriz — implicação de billing que só deve ser endereçada quando o gateway de pagamento for escolhido (seção 11).
+**Em aberto (não resolvido nesta rodada, fora de escopo):** se a 2RL cobra por filial ou só da matriz — implicação de billing que só deve ser endereçada quando o gateway de pagamento for escolhido (seção 11). **Resolvido em 2026-10-26 (seção 21): cada CNPJ (matriz ou filial) tem licença e assinatura próprias.**
 
 ## 17. Landing page comercial (SEO) + split de deploy por path em `acumulaai.com.br`
 
@@ -552,7 +552,7 @@ Revisão completa de `server/`, `mobile/`, `web/` (painel da Empresa) e admin. C
 - **Token do cliente invalidável** (`Cliente.token_valido_desde`): `authCliente` confere se a conta existe e se o token é posterior à última redefinição de senha.
 - **Anti-spam de solicitações:** um pedido pendente por loja e cupom fiscal não reutilizável.
 - **Validação de tipos** (`utils/validar.js`) em cadastro/login de cliente e empresa, PATCH da empresa, planos, campanhas, promoções: texto que chega como número/objeto virou 400 (antes, 500).
-- **Admin:** token de 8 h, `GET /admin/me`, sessão retomada ao recarregar (guardada só na aba, `sessionStorage`) e volta ao login quando o token vence.
+- **Admin:** token de 8 h, `GET /admin/me`, sessão retomada ao recarregar (guardada só na aba, `sessionStorage`) e volta ao login quando o token vence. **"Lembrar acesso neste dispositivo" (2026-10-27):** opt-in que pede token de **14 dias** e o guarda em `localStorage`; **nunca se guarda e-mail nem senha** (o token só tem o id do admin). `authAdmin` agora consulta o banco a cada chamada e "Sair do Painel" (`POST /auth/admin/logout`) grava `admins_2rl.token_valido_desde`, derrubando também o acesso lembrado em outros aparelhos. Corrigido também: um login sem "lembrar" apaga o token antigo do `localStorage`. Coluna criada no banco e **servidor + build do admin publicados em 2026-10-27** (Passenger reiniciado, `/health` ok; `POST /auth/admin/logout` responde 401 sem token, confirmando a rota nova).
 - **Painel Web:** sessão só é descartada em 401/403 (antes qualquer erro, até 5xx/429, deslogava a loja).
 - **Dependências:** `npm audit fix` → 0 vulnerabilidades (`proxy-addr` 2.0.8 era a crítica; o resto vinha do CLI do Prisma).
 - **Operação:** CORS aceita `localhost` só se `NODE_ENV` ≠ `production`; log de requisições não grava `/health` e apaga registros com mais de 90 dias; `seed-admin.js` lê a senha de `ADMIN_SENHA`; build de release **falha** sem `key.properties` (antes caía na chave de debug); `GoogleSignIn.signOut()` no "Sair da conta".
@@ -573,3 +573,86 @@ Revisão completa de `server/`, `mobile/`, `web/` (painel da Empresa) e admin. C
 - Campanhas de teste da Loja Teste ("Base", "BATON", "Corte de Cabelo") geram cartões reais para os clientes vinculados: encerrar antes de divulgar.
 
 **Publicação deste lote — feita em 2026-10-15** (banco, servidor, painel da Empresa, admin e `.htaccess`; falta só o app 1.0.2 na Play; `NODE_ENV=production` ainda não foi definido no cPanel, então o CORS de `localhost` segue aberto). Ordem usada (obrigatória em lotes com schema novo): 1) `prisma db push` (coluna `clientes.token_valido_desde`) **antes** do código novo; 2) enviar `server/src/` inteiro + `package.json`/`package-lock.json`; 3) "Run NPM Install" no Node.js App do cPanel (para `proxy-addr` 2.0.8) e, se quiser, definir `NODE_ENV=production`; 4) reiniciar o Passenger e conferir `/health`; 5) publicar `/app/` e o admin (builds novos) e os `.htaccess` de `deploy/`; 6) app 1.0.2 (código 3) na Play.
+
+## 21. Cobrança via Asaas: trial, assinatura, webhook, forma de pagamento e dashboard financeiro (2026-10-26/27)
+
+**Publicado em produção em 2026-10-27 (banco, `server/src/`, painel `/app/` e admin), mas ainda com a chave de SANDBOX do Asaas** — faturas criadas hoje são de teste. A troca para a conta/chave de produção está pendente (ver "Em aberto").
+
+### Decisões (usuário)
+- **Gateway: Asaas.** Formas de pagamento oferecidas à empresa: **Pix** e **cartão de crédito recorrente** (sem boleto). A empresa escolhe no auto-cadastro, junto com o plano, e aceita um termo de que os pagamentos são processados via gateway Asaas (`aceite_termos_em`/`aceite_termos_versao`; versão em `server/src/utils/trial.js`).
+- **Trial de 15 dias, uma única vez**, para cadastros novos (`trial_usado_em`; o CNPJ é único, então não se repete). Sem cobrança durante o trial.
+- **Uma licença/assinatura por CNPJ** (matriz e filiais cobradas separadamente — fecha o "em aberto" da seção 16).
+- **Empresas antigas:** licenças lançadas à mão ficam com **Pix como forma padrão** (backfill feito em 2026-10-27, 1 licença) e **sem assinatura no Asaas**: a cobrança automática delas só começa quando o admin clica em "Criar assinatura no Asaas". Cliente e admin podem trocar a forma quando necessário.
+
+### API do Asaas (o que foi confirmado)
+- Base: produção `https://api.asaas.com/v3`, sandbox `https://api-sandbox.asaas.com/v3`. Chave no header `access_token` (prefixo `$aact_prod_` / `$aact_hmlg_`); `User-Agent` obrigatório; chave sem uso por 3 meses é desabilitada.
+- Variáveis no `.env` do servidor (nunca versionar): `ASAAS_API_KEY`, `ASAAS_BASE_URL`, `ASAAS_WEBHOOK_TOKEN` (segredo nosso, 32+ caracteres; o Asaas o devolve no header `asaas-access-token`).
+- **Assinatura:** `POST /subscriptions` gera a **1ª cobrança na hora** (PENDING, vencendo em `nextDueDate`) — por isso a criamos no cadastro com `nextDueDate` = dia seguinte ao fim do trial. `billingType=CREDIT_CARD` é aceito **sem dados de cartão**: a empresa informa o cartão na fatura (`invoiceUrl`). **Não confirmado:** se esse cartão fica salvo para as cobranças seguintes (se não ficar, será preciso coletar/tokenizar o cartão por API — `PUT /subscriptions/{id}/creditCard`, exige tokenização habilitada em produção). Numa sondagem, uma assinatura `PIX` chegou a sair como `BOLETO` (fatura com QR Code Pix); no teste final saiu `PIX` — conferir em produção.
+- `DELETE /subscriptions/{id}` **remove as cobranças pendentes** (conferido) e dispara `PAYMENT_DELETED` no webhook.
+- Webhook: entrega "pelo menos uma vez" (dedupe pelo `id` do evento), fila pausa após 15 falhas seguidas, eventos retidos 14 dias; o webhook exige e-mail de alerta (usado `contato@hrthech.com.br`). Cadastro por `server/scripts/asaas-webhook.js` (ver DEPLOYMENT.md).
+- Sandbox: baixa manual via `POST /payments/{id}/receiveInCash` (a data não pode ser posterior ao dia de Brasília).
+
+### Banco (schema + `docs/schema.sql`)
+- `empresas`: `asaas_customer_id`, `trial_usado_em`, `aceite_termos_em`, `aceite_termos_versao`.
+- `licencas`: `forma_pagamento` (`PIX`|`CARTAO_RECORRENTE`), `em_trial`; `gateway_provedor='ASAAS'`, `gateway_assinatura_id`.
+- `cobrancas` (espelho de cada `payment`: valor, forma, status, vencimento, pagamento, `invoice_url`, `licenca_estendida_em`) e `asaas_eventos` (ids de webhook já processados).
+
+### Servidor (`server/src/`)
+- `utils/asaas.js` (cliente: cliente, assinatura, cancelar, listar cobranças), `utils/assinatura.js` (`garantirAssinatura`, `alterarFormaPagamento`, `sincronizarCobrancas`), `utils/cobranca.js` (regras de renovação), `utils/financeiro.js` (situações e dashboard), `utils/trial.js`, `routes/planos.js`, `routes/webhooks.js`, `routes/adminFinanceiro.js`.
+- **Cadastro** (`POST /auth/empresa/registrar`): exige `planoId`, `formaPagamento`, `aceiteTermos`; cria empresa + licença de trial; replica o cliente no Asaas e cria a assinatura. Se o Asaas falhar, o cadastro **não** é desfeito (`asaas_sincronizado`/`assinatura_criada` vêm `false`; o admin refaz em `POST /admin/licencas/:id/assinatura`).
+- `GET /planos` (público, só ativos) alimenta o cadastro.
+- **Webhook** `POST /webhooks/asaas` (fora do rate limit geral, com limite próprio; valida `asaas-access-token` com `timingSafeEqual`; 503 se o token não estiver configurado). `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED` renovam a licença **uma única vez por cobrança** (reivindicação por `licenca_estendida_em`): novo vencimento = um mês a partir do vencimento da fatura menos 1 dia, nunca encurta; sai do trial. `BLOQUEADA`/`CANCELADA` gravados à mão não são desfeitos por pagamento. `PAYMENT_OVERDUE` não renova (o atraso continua sendo calculado pelas datas).
+- **Cancelar licença** (`PATCH /admin/licencas/:id`, `status: CANCELADA`) cancela a assinatura no Asaas (se o Asaas recusar, nada muda), marca as faturas em aberto como `DELETED` e libera `gateway_assinatura_id`; **reativar** (`ATIVA` sobre uma cancelada com forma definida) cria assinatura nova.
+- **Forma de pagamento:** `PUT /empresas/me/assinatura/forma-pagamento` (a própria empresa) e `PUT /admin/licencas/:id/forma-pagamento` (admin). Sem assinatura: só grava a forma. Com assinatura: cancela a antiga, recria na forma nova (1ª fatura no dia seguinte ao fim do período já pago); se a recriação falhar, a forma fica gravada e a resposta traz `aviso`. Licença cancelada não troca. `POST /admin/empresas/:id/licencas` aceita `formaPagamento` (padrão Pix) e `criarAssinatura`.
+- `GET /empresas/me/assinatura` (empresa), `GET /admin/empresas` (agora com `situacao_financeira`, `plano_nome`, `forma_pagamento`, `fatura_aberta`), `GET /admin/empresas/:id` (+ `cobrancas`), `GET /admin/financeiro?periodo=mes|3m|6m|12m|ano`.
+- **Situação financeira** (`utils/financeiro.js`): `SEM_LICENCA`, `EM_TESTE`, `PAGA`, `ATIVA_MANUAL` (licença à mão, sem Asaas), `ATRASADA`, `BLOQUEADA`, `CANCELADA`, derivada da licença e das datas (sem cron).
+- Testes novos: `trial`, `cobranca`, `financeiro` (51 no total em `npm test`).
+
+### Painel da Empresa (`/app/`)
+- **Cadastro:** escolha de plano (lista de `GET /planos`), Pix ou cartão recorrente, aviso do trial e checkbox do termo Asaas.
+- **Tela "Assinatura"** (menu CONTA): plano, valor, forma (com botão **Alterar**), selo (Em teste grátis/Ativa/Pagamento em atraso/Bloqueada/Cancelada), prazo do trial ou da licença paga, **próxima fatura com botão "Pagar agora"/"Pagar com cartão"** (abre a fatura do Asaas, só https) e histórico de faturas. Quando não há assinatura no Asaas, explica que a cobrança automática ainda não foi ativada.
+- `EmpresaApi.baseUrl` e `AdminApi.baseUrl` aceitam `--dart-define=API_URL=http://localhost:3055` para desenvolvimento (o padrão continua a API de produção).
+
+### Admin 2RL (`admin.acumulaai.com.br`)
+- **Dashboard** (nova 1ª opção do menu, tela inicial): faturamento no período (seletor Este mês/3/6/12 meses/Este ano), recebido no mês atual com variação vs. anterior, MRR, a receber, em atraso, previsão dos testes; gráfico de barras por mês (recebido × em aberto); empresas por situação + conversão do teste grátis; receita por plano; recebido por forma de pagamento; listas de faturas em atraso, próximos vencimentos (30 dias) e testes terminando (7 dias), com clique para a empresa.
+- **Empresas:** selo de situação financeira (Em teste/Paga/Atrasada/Bloqueada/Cancelada/Sem licença/Ativa manual), linha "Plano · Pix/Cartão" e "Fatura R$ … vence/venceu dd/mm", filtro e cards por situação, CSV com situação/plano/forma.
+- **Detalhe da empresa:** card **Cobranças** (faturas com status, forma e link), licença com "Teste grátis até…", forma, "Cobrança no Asaas não ativada", ações **Criar assinatura no Asaas** e **Alterar forma de pagamento**; **Nova licença** com forma e opção de criar a assinatura; cancelar pede confirmação (cancela no Asaas).
+
+### Publicação (2026-10-27) e verificação
+- Ordem usada: `db push` (aditivo, local contra o banco remoto) → `server/src/` inteiro por FTPS (59 arquivos, tamanhos conferidos) → `.env` de produção com as 3 variáveis `ASAAS_*` + reinício do Passenger (pelo responsável) → `/health` + rotas novas → painéis (`index.html` por último) → webhook cadastrado no sandbox (`https://api.acumulaai.com.br/webhooks/asaas`) → teste ponta a ponta em produção (cadastro → fatura → baixa no sandbox → webhook real → licença renovada → troca de forma → limpeza). Detalhes e lições em [dev/DEPLOYMENT.md](dev/DEPLOYMENT.md).
+
+### Lições
+- **O `.env` local aponta para o banco de PRODUÇÃO** e o webhook cadastrado no Asaas aponta para a API de produção: testes locais com o sandbox geram eventos que o servidor de produção processa (e grava `cobrancas` de volta). Na limpeza, apagar primeiro no Asaas, **esperar ~10 s** os webhooks de exclusão chegarem e só então apagar as linhas do banco (senão a FK `cobrancas → licencas` trava). Dados de teste: empresas com "(teste)" no nome; remover sempre ao fim.
+- O cadastro de empresa tem limite de 5/hora por IP (`CF-Connecting-IP`): em testes seguidos, reiniciar a API local ou variar o header.
+- Datas de pagamento no Asaas valem no fuso de Brasília (UTC pode ser "amanhã" às 21h+).
+
+### Em aberto
+- **Trocar para produção do Asaas:** conta aprovada, chave `$aact_prod_`, `ASAAS_BASE_URL=https://api.asaas.com/v3`, **webhook novo cadastrado com a chave de produção** (rodar o script com o `.env` trocado) e, se possível, lista de IPs da chave. Até lá o cadastro público gera faturas de teste — não divulgar.
+- Confirmar com o Asaas: cartão informado na 1ª fatura fica salvo para as seguintes? Como a fatura Pix aparece em produção (Pix × boleto com QR)?
+- Empresas antigas continuam sem cobrança automática até o admin criar a assinatura de cada uma.
+- Planos que aparecem no cadastro público (hoje "Plano Básico" R$ 99,90 e "Plano Gold" R$ 150,00): confirmar preços reais ou desativar no admin.
+- Trocar a forma de pagamento **pelo admin** foi testado só localmente; em produção só o caminho da própria empresa.
+- Contrato com assinatura eletrônica continua sem provedor (seção 11).
+
+## 22. Nota fiscal de serviço (NFS-e) pelo Asaas (2026-11-07) — IMPLEMENTADO LOCALMENTE, NÃO PUBLICADO
+
+**Decisão (usuário):** emitir a NFS-e pelo próprio Asaas, **após o pagamento confirmado**; enviar por e-mail à empresa e deixar **PDF (DANFSe) e XML** para baixar em `/app/` (tela Assinatura). Custo informado pelo Asaas: R$ 0,49 por nota emitida (agendar/cancelar não cobram).
+
+### Como funciona
+- A **regra de emissão** fica na assinatura do Asaas (`POST /subscriptions/{id}/invoiceSettings`, `effectiveDatePeriod: ON_PAYMENT_CONFIRMATION`): o Asaas gera a nota sozinho a cada pagamento confirmado. `garantirAssinatura` aplica a regra ao criar a assinatura (também na troca de forma de pagamento, que recria a assinatura); falha aqui só é logada. Assinaturas já existentes: `node scripts/nfse-regra.js` (simulação) / `--aplicar`.
+- **Ligar/desligar e fiscal pelo `.env`** (nada é pedido enquanto não estiver completo): `NFSE_ATIVA=true` + `NFSE_SERVICO_CODIGO` (ex.: `1.01`, ou `NFSE_SERVICO_ID` da lista da prefeitura — um OU outro); alíquotas `NFSE_ISS`, `NFSE_RETEM_ISS`, `NFSE_PIS`, `NFSE_COFINS`, `NFSE_CSLL`, `NFSE_INSS`, `NFSE_IR` (padrão 0 = Simples); `NFSE_SERVICO_NOME`, `NFSE_OBSERVACOES`; Regime Normal/Portal Nacional: `NFSE_PIS_COFINS_STATUS`, `NFSE_OPERACAO_PIS`, `NFSE_OPERACAO_COFINS`. Valores e código do serviço **vêm da contabilidade**.
+- **Webhook** `INVOICE_*` (`routes/webhooks.js` → `processarNota`): grava em `notas_fiscais` (tabela nova; schema + `docs/schema.sql`), na 1ª autorização com PDF/XML manda o e-mail (`utils/mailer.js`, texto com os links; uma vez por nota via `email_enviado_em`). `INVOICE_ERROR` guarda `motivo_erro` e loga. Código puro e testado em `utils/nota.js` (`test/nota.test.js`).
+- **Painel `/app/` → Assinatura:** coluna "Nota fiscal" por fatura com botões PDF e XML (links https do Asaas em nova aba); "Emitindo…" em fatura paga sem nota quando `nota_fiscal_ativa`.
+- A **configuração fiscal da HR Thech** (inscrição municipal, credencial da prefeitura/Portal Nacional, regime, CNAE, RPS) é feita **no painel do Asaas** (Minha conta → Informações fiscais) — nunca pelo chat/código.
+
+### Falta para entrar no ar
+1. `prisma db push` (tabela `notas_fiscais`, aditivo) — exige autorização expressa; depois `server/src/` novo por FTPS (`utils/nota.js`, `utils/asaas.js`, `utils/assinatura.js`, `routes/webhooks.js`, `routes/empresa.js`), reiniciar o Passenger e confirmar `/health`; build do `/app/`.
+2. Conta Asaas de **produção** com a configuração fiscal feita e município integrado; variáveis `NFSE_*` no `.env` de produção; **reexecutar `scripts/asaas-webhook.js`** (para assinar os eventos `INVOICE_*`) e `scripts/nfse-regra.js --aplicar` para as assinaturas existentes.
+3. **Cadastro do tomador:** o cadastro da empresa não coleta endereço (CEP, número…) e `garantirCliente` só envia nome/CNPJ/e-mail. O Asaas exige cliente completo para emitir NFS-e — se a prefeitura exigir, é preciso coletar endereço no auto-cadastro/Configurações e enviá-lo ao Asaas (ainda não feito).
+4. Não confirmado na documentação (conferir no sandbox, que segundo a doc permite configurar e emitir notas, dependendo do município usado no teste):
+   - se o Asaas também envia a nota por e-mail ao cliente (pode haver e-mail duplicado);
+   - se `pdfUrl`/`xmlUrl` abrem sem login (se não abrirem, o servidor precisa baixar os arquivos e servi-los pela API autenticada da empresa);
+   - qual erro o `POST …/invoiceSettings` dá quando a regra já existe (o código tenta o `PUT` após qualquer 400) e o que vem em `statusDescription` no `INVOICE_ERROR`;
+   - o que acontece se a configuração fiscal da conta não existir.
+5. **Ordem de deploy:** `db push` **antes** de subir o `server/src/` e de rodar `asaas-webhook.js`. Sem a tabela `notas_fiscais`, os eventos `INVOICE_*` dariam 500 e o Asaas **pausa a fila de webhook após 15 falhas seguidas** — o que também paralisaria os eventos de pagamento (renovação de licença).
+6. Painel: nota com `CANCELLATION_DENIED` (cancelamento negado, nota segue válida) continua aparecendo; cancelada/em erro some.

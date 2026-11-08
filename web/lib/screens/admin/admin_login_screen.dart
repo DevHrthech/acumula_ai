@@ -103,6 +103,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           ),
           const SizedBox(height: 14),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
                 width: 22,
@@ -114,7 +115,19 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              Text('Lembrar acesso neste dispositivo', style: TextStyle(fontSize: 13, color: theme.textDark)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Lembrar acesso neste dispositivo', style: TextStyle(fontSize: 13, color: theme.textDark)),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Mantém você conectado por 14 dias neste navegador, sem guardar e-mail nem senha. Não use em computador compartilhado.',
+                      style: TextStyle(fontSize: 11.5, color: theme.textMuted, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
           if (_erro != null) ...[
