@@ -40,8 +40,6 @@ dependencies:
   google_sign_in: ^7.2.0
   mobile_scanner: ^7.4.2
   flutter_secure_storage: ^11.2.0
-  local_auth: ^3.0.2
-  local_auth_android: ^2.3.0
   image_picker: ^1.2.4
   crop_your_image: ^2.0.1
   image: ^4.12.0

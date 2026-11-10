@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:google_sign_in/google_sign_in.dart';
 import '../config/google.dart';
 
@@ -11,7 +12,12 @@ class GoogleAuth {
 
   static Future<void> _garantirInicializado() async {
     if (_inicializado) return;
-    await GoogleSignIn.instance.initialize(serverClientId: googleWebClientId);
+    await GoogleSignIn.instance.initialize(
+      // No Android o pacote + SHA-1 cadastrados no Play Console já bastam;
+      // no iOS não há essa amarração, então o Client ID precisa vir daqui.
+      clientId: Platform.isIOS ? googleIosClientId : null,
+      serverClientId: googleWebClientId,
+    );
     _inicializado = true;
   }
 

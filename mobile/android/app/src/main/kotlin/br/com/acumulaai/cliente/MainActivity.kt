@@ -1,6 +1,5 @@
 package br.com.acumulaai.cliente
 
-import io.flutter.embedding.android.FlutterFragmentActivity
+import io.flutter.embedding.android.FlutterActivity
 
-// FragmentActivity: exigência do local_auth (diálogo de biometria).
-class MainActivity : FlutterFragmentActivity()
+class MainActivity : FlutterActivity()

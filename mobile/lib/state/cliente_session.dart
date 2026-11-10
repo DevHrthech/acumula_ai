@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/cliente_api.dart';
 import '../services/google_auth.dart';
-import 'bloqueio.dart';
 
 /// Sessão de autenticação do Cliente logado — token JWT + dados retornados
 /// pela API. O token fica guardado no armazenamento seguro do aparelho
@@ -156,11 +155,10 @@ class ClienteSession extends ChangeNotifier {
     await api.solicitarMarcacao(empresaId: empresaId, cupomFiscal: cupomFiscal);
   }
 
-  Future<void> atualizarPreferencias({bool? notificacoesPush, bool? notificacoesEmail, bool? loginBiometrico}) async {
+  Future<void> atualizarPreferencias({bool? notificacoesPush, bool? notificacoesEmail}) async {
     cliente = await api.atualizarPreferencias(
       notificacoesPush: notificacoesPush,
       notificacoesEmail: notificacoesEmail,
-      loginBiometrico: loginBiometrico,
     );
     notifyListeners();
   }
@@ -189,7 +187,6 @@ class ClienteSession extends ChangeNotifier {
 
   void logout() {
     _apagarToken();
-    Bloqueio.instance.limpar();
     // Sai também da conta Google do aparelho (senão o próximo "Entrar com
     // Google" pode reaproveitar a conta anterior sem mostrar o seletor).
     GoogleAuth.sair();
