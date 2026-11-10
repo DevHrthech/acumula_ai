@@ -3,6 +3,7 @@ import '../services/empresa_api.dart';
 import '../state/empresa_config.dart';
 import '../state/empresa_session.dart';
 import '../theme/theme_provider.dart';
+import '../utils/documento.dart';
 import 'web_root_screen.dart';
 
 /// Auto-cadastro público da loja — acessível pelo botão "Criar conta" do
@@ -18,13 +19,15 @@ class CadastroEmpresaScreen extends StatefulWidget {
 
 class _CadastroEmpresaScreenState extends State<CadastroEmpresaScreen> {
   final _nomeController = TextEditingController();
-  final _cnpjController = TextEditingController();
+  final _documentoController = TextEditingController();
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
   final _categoriaController = TextEditingController();
   final _recompensaController = TextEditingController();
   final _metaController = TextEditingController(text: '10');
   String _tipoFidelidade = 'MARCACOES';
+  // Empresa (CNPJ) ou pessoa física (CPF): muda máscara, rótulos e validação.
+  TipoDocumento _tipoDocumento = TipoDocumento.cnpj;
   bool _obscureSenha = true;
   bool _carregando = false;
   String? _erro;
@@ -66,7 +69,7 @@ class _CadastroEmpresaScreenState extends State<CadastroEmpresaScreen> {
   @override
   void dispose() {
     _nomeController.dispose();
-    _cnpjController.dispose();
+    _documentoController.dispose();
     _emailController.dispose();
     _senhaController.dispose();
     _categoriaController.dispose();
@@ -79,11 +82,15 @@ class _CadastroEmpresaScreenState extends State<CadastroEmpresaScreen> {
     FocusScope.of(context).unfocus();
 
     if (_nomeController.text.trim().isEmpty ||
-        _cnpjController.text.trim().isEmpty ||
+        _documentoController.text.trim().isEmpty ||
         _emailController.text.trim().isEmpty ||
         _senhaController.text.isEmpty ||
         _recompensaController.text.trim().isEmpty) {
-      setState(() => _erro = 'Preencha nome, CNPJ, e-mail, senha e recompensa.');
+      setState(() => _erro = 'Preencha nome, ${_tipoDocumento.rotulo}, e-mail, senha e recompensa.');
+      return;
+    }
+    if (tipoDoDocumento(_documentoController.text) != _tipoDocumento || !documentoValido(_documentoController.text)) {
+      setState(() => _erro = '${_tipoDocumento.rotulo} inválido. Confira os números digitados.');
       return;
     }
     if (_senhaController.text.length < 8) {
@@ -112,7 +119,7 @@ class _CadastroEmpresaScreenState extends State<CadastroEmpresaScreen> {
       final session = EmpresaSessionScope.of(context);
       await session.registrar(
         nome: _nomeController.text.trim(),
-        cnpj: _cnpjController.text.trim(),
+        documento: _documentoController.text.trim(),
         email: _emailController.text.trim(),
         senha: _senhaController.text,
         descricaoRecompensa: _recompensaController.text.trim(),
@@ -191,24 +198,50 @@ class _CadastroEmpresaScreenState extends State<CadastroEmpresaScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _Rotulo('Nome da empresa *', theme: theme),
+                          _Rotulo('Você vai usar o ACUMULAAI como *', theme: theme),
+                          const SizedBox(height: 8),
+                          SegmentedButton<TipoDocumento>(
+                            segments: const [
+                              ButtonSegment(value: TipoDocumento.cnpj, label: Text('Empresa (CNPJ)'), icon: Icon(Icons.business_outlined)),
+                              ButtonSegment(value: TipoDocumento.cpf, label: Text('Pessoa física (CPF)'), icon: Icon(Icons.person_outline)),
+                            ],
+                            selected: {_tipoDocumento},
+                            showSelectedIcon: false,
+                            style: SegmentedButton.styleFrom(
+                              selectedBackgroundColor: theme.primary,
+                              selectedForegroundColor: Colors.white,
+                            ),
+                            onSelectionChanged: (escolha) => setState(() {
+                              _tipoDocumento = escolha.first;
+                              // Reaplica a máscara do novo tipo ao que já foi digitado.
+                              _documentoController.text = formatarDocumento(_documentoController.text, _tipoDocumento);
+                            }),
+                          ),
+                          const SizedBox(height: 20),
+                          _Rotulo(_tipoDocumento == TipoDocumento.cpf ? 'Nome completo *' : 'Nome da empresa *', theme: theme),
                           const SizedBox(height: 8),
                           TextField(
                             controller: _nomeController,
-                            decoration: _inputDecoration(theme, hint: 'Ex: Barbearia Estilo LTDA', prefixIcon: Icons.storefront_outlined),
+                            decoration: _inputDecoration(
+                              theme,
+                              hint: _tipoDocumento == TipoDocumento.cpf ? 'Ex: Maria da Silva' : 'Ex: Barbearia Estilo LTDA',
+                              prefixIcon: _tipoDocumento == TipoDocumento.cpf ? Icons.person_outline : Icons.storefront_outlined,
+                            ),
                           ),
                           const SizedBox(height: 20),
                           LayoutBuilder(
                             builder: (context, c) {
                               final estreito = c.maxWidth < 420;
-                              final cnpj = Column(
+                              final documento = Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  _Rotulo('CNPJ *', theme: theme),
+                                  _Rotulo('${_tipoDocumento.rotulo} *', theme: theme),
                                   const SizedBox(height: 8),
                                   TextField(
-                                    controller: _cnpjController,
-                                    decoration: _inputDecoration(theme, hint: '00.000.000/0000-00', prefixIcon: Icons.badge_outlined),
+                                    controller: _documentoController,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [DocumentoFormatter(_tipoDocumento)],
+                                    decoration: _inputDecoration(theme, hint: _tipoDocumento.mascaraExemplo, prefixIcon: Icons.badge_outlined),
                                   ),
                                 ],
                               );
@@ -225,11 +258,11 @@ class _CadastroEmpresaScreenState extends State<CadastroEmpresaScreen> {
                                 ],
                               );
                               if (estreito) {
-                                return Column(children: [cnpj, const SizedBox(height: 20), email]);
+                                return Column(children: [documento, const SizedBox(height: 20), email]);
                               }
                               return Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [Expanded(child: cnpj), const SizedBox(width: 16), Expanded(child: email)],
+                                children: [Expanded(child: documento), const SizedBox(width: 16), Expanded(child: email)],
                               );
                             },
                           ),
@@ -414,7 +447,7 @@ class _CadastroEmpresaScreenState extends State<CadastroEmpresaScreen> {
                             activeColor: theme.primary,
                             title: Text(
                               'Estou ciente de que os pagamentos da mensalidade serão processados via gateway de pagamento Asaas '
-                              '(Pix ou cartão de crédito recorrente), e autorizo o envio dos dados da minha empresa (nome, CNPJ e e-mail) ao Asaas para esse fim. *',
+                              '(Pix ou cartão de crédito recorrente), e autorizo o envio dos meus dados (nome, CPF/CNPJ e e-mail) ao Asaas para esse fim. *',
                               style: TextStyle(fontSize: 12.5, color: theme.textDark),
                             ),
                           ),

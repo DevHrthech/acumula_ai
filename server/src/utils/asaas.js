@@ -69,7 +69,8 @@ async function garantirCliente(empresa) {
 
   const criado = await chamar('POST', '/customers', {
     name: empresa.nome,
-    cpfCnpj: empresa.cnpj.replace(/\D/g, ''),
+    // CPF (pessoa física) ou CNPJ: o Asaas aceita os dois em `cpfCnpj`.
+    cpfCnpj: empresa.cnpj_cpf.replace(/\D/g, ''),
     email: empresa.email,
     externalReference: empresa.id,
   });

@@ -10,7 +10,7 @@ A empresa cliente (Empresa X) que contrata o ACUMULAAI.
 | Campo | Observação |
 |---|---|
 | id | PK (UUID) |
-| nome, cnpj (unique), email (unique), senha_hash | cadastro/login da empresa na Web |
+| nome, cnpj_cpf (unique), email (unique), senha_hash | cadastro/login da empresa na Web. `cnpj_cpf` guarda o CPF (pessoa física) ou o CNPJ, sempre formatado; o tipo vem do tamanho (11 ou 14 dígitos). Antes de 2026-11 a coluna se chamava `cnpj` |
 | codigo_loja (unique) | código curto usado no QR Code / digitado manualmente pelo cliente pra vincular |
 | categoria | livre, ex: "Cafeteria" |
 | empresa_pai_id → empresas, nullable | agrupamento matriz/filiais só para gestão comercial/cobrança da 2RL (ver seção "Matriz e filiais" abaixo) — controlado exclusivamente pelo admin interno, não pela própria empresa |

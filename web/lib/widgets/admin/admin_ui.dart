@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../theme/theme_provider.dart';
 
 /// Kit de componentes visuais do painel administrativo interno da 2RL
@@ -33,30 +34,8 @@ String formatarMoeda(num v) {
   return '${formatarMilhar(int.parse(partes[0]))},${partes[1]}';
 }
 
-/// Validação de dígito verificador de CNPJ — só para exibir o selo "Válido"
-/// no cadastro (o CNPJ já foi validado no servidor ao criar a empresa);
-/// mesmo algoritmo de server/src/utils/cnpj.js, replicado aqui pro
-/// front-end não depender de uma chamada à API só pra isso.
-bool cnpjValido(String cnpj) {
-  final digitos = cnpj.replaceAll(RegExp(r'\D'), '');
-  if (digitos.length != 14 || RegExp(r'^(\d)\1{13}$').hasMatch(digitos)) return false;
-
-  int calcularDigito(String base, List<int> pesos) {
-    var soma = 0;
-    for (var i = 0; i < base.length; i++) {
-      soma += int.parse(base[i]) * pesos[i];
-    }
-    final resto = soma % 11;
-    return resto < 2 ? 0 : 11 - resto;
-  }
-
-  const pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  final base = digitos.substring(0, 12);
-  final dv1 = calcularDigito(base, pesos1);
-  final dv2 = calcularDigito('$base$dv1', pesos2);
-  return digitos == '$base$dv1$dv2';
-}
+// A validação de CPF/CNPJ (selo "Válido" no cadastro) fica em
+// lib/utils/documento.dart, junto da máscara usada nos formulários.
 
 /// Avatar circular com as iniciais da empresa/pessoa.
 class AdminAvatar extends StatelessWidget {
@@ -538,6 +517,7 @@ class AdminField extends StatelessWidget {
   final TextInputType? teclado;
   final int maxLinhas;
   final VoidCallback? onSubmitted;
+  final List<TextInputFormatter>? formatadores;
 
   const AdminField({
     super.key,
@@ -549,6 +529,7 @@ class AdminField extends StatelessWidget {
     this.teclado,
     this.maxLinhas = 1,
     this.onSubmitted,
+    this.formatadores,
   });
 
   @override
@@ -565,6 +546,7 @@ class AdminField extends StatelessWidget {
             controller: controller,
             obscureText: obscure,
             keyboardType: teclado,
+            inputFormatters: formatadores,
             maxLines: maxLinhas,
             onSubmitted: onSubmitted == null ? null : (_) => onSubmitted!(),
             decoration: InputDecoration(

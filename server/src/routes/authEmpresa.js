@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 const prisma = require('../prisma');
 const { gerarCodigoLojaUnico } = require('../utils/codigoLoja');
-const cnpjUtil = require('../utils/cnpj');
+const { analisar: analisarDocumento, campoDuplicado } = require('../utils/documento');
 const { limiteLogin, limiteRegistro } = require('../middleware/rateLimiters');
 const { primeiroErroTexto } = require('../utils/validar');
 const { FORMAS_PAGAMENTO, VERSAO_TERMOS, DIAS_TRIAL, periodoTrial } = require('../utils/trial');
@@ -41,7 +41,8 @@ function gerarToken(empresa) {
 router.post('/registrar', limiteRegistro, async (req, res) => {
   const {
     nome,
-    cnpj,
+    cnpjCpf,
+    cnpj, // legado: painel antigo envia o documento neste campo
     email,
     senha,
     descricaoRecompensa,
@@ -52,10 +53,11 @@ router.post('/registrar', limiteRegistro, async (req, res) => {
     formaPagamento,
     aceiteTermos,
   } = req.body || {};
+  const documentoInformado = cnpjCpf ?? cnpj;
 
-  if (!nome || !cnpj || !email || !senha || !descricaoRecompensa) {
+  if (!nome || !documentoInformado || !email || !senha || !descricaoRecompensa) {
     return res.status(400).json({
-      erro: 'Campos obrigatórios: nome, cnpj, email, senha, descricaoRecompensa.',
+      erro: 'Campos obrigatórios: nome, cnpjCpf, email, senha, descricaoRecompensa.',
     });
   }
 
@@ -80,8 +82,9 @@ router.post('/registrar', limiteRegistro, async (req, res) => {
     return res.status(400).json({ erro: erroTexto });
   }
 
-  if (!cnpjUtil.isValido(cnpj)) {
-    return res.status(400).json({ erro: 'CNPJ inválido.' });
+  const documento = analisarDocumento(documentoInformado);
+  if (!documento) {
+    return res.status(400).json({ erro: 'CPF ou CNPJ inválido.' });
   }
 
   if (!EMAIL_REGEX.test(email)) {
@@ -110,12 +113,12 @@ router.post('/registrar', limiteRegistro, async (req, res) => {
     const codigoLoja = await gerarCodigoLojaUnico(prisma);
     const trial = periodoTrial();
 
-    // Empresa + licença de trial nascem juntas (uma única escrita): o CNPJ é
-    // único, então o trial só é concedido uma vez por empresa.
+    // Empresa + licença de trial nascem juntas (uma única escrita): o CPF/CNPJ
+    // é único, então o trial só é concedido uma vez por documento.
     let empresa = await prisma.empresa.create({
       data: {
         nome,
-        cnpj: cnpjUtil.formatar(cnpj),
+        cnpj_cpf: documento.formatado,
         email: email.toLowerCase().trim(),
         senha_hash: senhaHash,
         codigo_loja: codigoLoja,
@@ -181,7 +184,7 @@ router.post('/registrar', limiteRegistro, async (req, res) => {
     });
   } catch (err) {
     if (err.code === 'P2002') {
-      const campo = err.meta?.target?.[0] || 'campo único';
+      const campo = campoDuplicado(err);
       return res.status(409).json({ erro: `Já existe uma empresa cadastrada com esse ${campo}.` });
     }
     console.error(err);

@@ -6,7 +6,7 @@ const DIAS_TRIAL = 15;
 // Versão do texto que a empresa aceita no cadastro (cobrança via gateway
 // Asaas) — gravada em empresas.aceite_termos_versao. Mudou o texto na tela,
 // mude aqui também.
-const VERSAO_TERMOS = '2026-10';
+const VERSAO_TERMOS = '2026-11'; // 2026-11: o termo passa a citar CPF/CNPJ (nome, CPF/CNPJ e e-mail)
 
 const FORMAS_PAGAMENTO = ['PIX', 'CARTAO_RECORRENTE'];
 

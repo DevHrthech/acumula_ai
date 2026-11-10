@@ -27,7 +27,7 @@ Sem autenticação.
 | Campo | Tipo | Obrigatório | Validação |
 |---|---|---|---|
 | `nome` | string | sim | ≤150 caracteres |
-| `cnpj` | string | sim | dígito verificador válido |
+| `cnpjCpf` | string | sim | **CPF** (pessoa física, 11 dígitos) **ou CNPJ** (14 dígitos), com ou sem máscara, com dígito verificador válido do tipo correspondente; sai formatado em `cnpj_cpf`. O campo antigo `cnpj` continua aceito (compatibilidade com painel antigo) |
 | `email` | string | sim | ≤150, formato de e-mail |
 | `senha` | string | sim | ≥8 caracteres |
 | `descricaoRecompensa` | string | sim | ≤255 |
@@ -38,11 +38,11 @@ Sem autenticação.
 | `formaPagamento` | enum | sim | `PIX` \| `CARTAO_RECORRENTE` (boleto não é oferecido) |
 | `aceiteTermos` | boolean | sim | tem de ser exatamente `true` (aceite de que os pagamentos são processados via gateway Asaas; grava `aceite_termos_em` e a versão do termo) |
 
-Além da empresa, o cadastro cria a **licença de trial** (15 dias a partir de hoje no fuso de Brasília, `em_trial: true`, `gateway_provedor: 'ASAAS'`, uma única vez por empresa — o CNPJ é único), replica a empresa como cliente no Asaas e cria a **assinatura mensal** (a 1ª fatura vence no dia seguinte ao fim do trial). Falha do Asaas **não desfaz** o cadastro.
+Além da empresa, o cadastro cria a **licença de trial** (15 dias a partir de hoje no fuso de Brasília, `em_trial: true`, `gateway_provedor: 'ASAAS'`, uma única vez por empresa — o CPF/CNPJ é único), replica a empresa como cliente no Asaas e cria a **assinatura mensal** (a 1ª fatura vence no dia seguinte ao fim do trial). Falha do Asaas **não desfaz** o cadastro.
 
 - **201** `{ empresa, token, licenca, asaas_sincronizado, assinatura_criada }` — token expira em 7 dias; `licenca` traz `data_vencimento` (fim do trial), `forma_pagamento`, `em_trial`, `gateway_assinatura_id` e `dias_trial: 15`; `asaas_sincronizado`/`assinatura_criada` são `false` se o Asaas falhou (o admin refaz em `POST /admin/licencas/:id/assinatura`)
-- **400** campo obrigatório ausente / CNPJ inválido / email inválido / senha curta / valores fora do intervalo / `Escolha um plano.` / `formaPagamento deve ser PIX ou CARTAO_RECORRENTE.` / `É preciso aceitar que os pagamentos serão processados via gateway Asaas.` / `Plano indisponível. Escolha outro.`
-- **409** `Já existe uma empresa cadastrada com esse <campo>.` (e-mail, CNPJ ou código de loja duplicado)
+- **400** campo obrigatório ausente / `CPF ou CNPJ inválido.` / email inválido / senha curta / valores fora do intervalo / `Escolha um plano.` / `formaPagamento deve ser PIX ou CARTAO_RECORRENTE.` / `É preciso aceitar que os pagamentos serão processados via gateway Asaas.` / `Plano indisponível. Escolha outro.`
+- **409** `Já existe uma empresa cadastrada com esse <campo>.` (e-mail, CPF/CNPJ ou código de loja duplicado)
 - **429** limite de cadastros (5 por hora por IP)
 
 ### `POST /auth/empresa/login`
@@ -70,7 +70,7 @@ Atualização parcial — todos os campos opcionais:
 
 `nome` (≤150, não vazio) · `categoria` (≤100, aceita `null`) · `metaFidelidade` (1–1000) · `descricaoRecompensa` (≤255) · `corPrincipal`/`corDestaque` (`#RRGGBB`) · `nomePrograma` (≤100) · `mensagemBoasVindas`/`mensagemResgate` (≤255) · `textoBotaoResgate` (≤60)
 
-**Fora de escopo deste endpoint** (por decisão de produto ou falta de infra): `email`/`cnpj`/senha, `tipoFidelidade` (fixo após cadastro), imagens de marca (ver `PUT /empresas/me/imagens/:tipo` abaixo).
+**Fora de escopo deste endpoint** (por decisão de produto ou falta de infra): `email`/`cnpjCpf`/senha, `tipoFidelidade` (fixo após cadastro), imagens de marca (ver `PUT /empresas/me/imagens/:tipo` abaixo).
 
 - **200** empresa atualizada
 - **400** valor fora do formato/intervalo esperado
@@ -242,7 +242,7 @@ Atualiza o e-mail de recuperação. Body: `email` (string; vazio remove).
 Histórico recente (até 30 itens, mais novos primeiro) de marcações, resgates e solicitações de todas as lojas do cliente: `[{ tipo: MARCACAO|RESGATE|SOLICITACAO, loja, data, pontos?, status? }]`.
 
 ### `GET /clientes/me/vinculos`
-- **200** array `{ id, saldoAtual, dataVinculo, empresa }` — `empresa` é uma versão pública (nunca inclui email/CNPJ/dados de gestão, só o necessário para renderizar o cartão: nome, cores, mecânica, textos, ícones)
+- **200** array `{ id, saldoAtual, dataVinculo, empresa }` — `empresa` é uma versão pública (nunca inclui email/CPF/CNPJ/dados de gestão, só o necessário para renderizar o cartão: nome, cores, mecânica, textos, ícones)
 
 ### `GET /clientes/me/campanhas`
 Cartões de campanha: um por campanha `ATIVA` e dentro da validade das lojas vinculadas. **200** `[{ id, nome, descricao, meta, dataValidade, saldoAtual, empresa }]` (progresso calculado só com as marcações daquela campanha).
@@ -307,22 +307,22 @@ Autenticada (`authAdmin`). Grava `admins_2rl.token_valido_desde = now()`: todos 
   - `fatura_aberta`: `{ valor, data_vencimento, atrasada }` da fatura em aberto mais antiga, ou `null`
 
 ### `POST /admin/empresas`
-Cadastro de empresa pela equipe 2RL (a empresa também pode se cadastrar sozinha em `/auth/empresa/registrar`). Mesmas validações do cadastro público. Body: `nome`, `cnpj`, `email`, `senha` (≥ 8), `descricaoRecompensa` (obrigatórios) · `categoria`, `tipoFidelidade` (`MARCACOES`|`PONTOS`), `metaFidelidade` (1–1000), `empresaPaiId` (opcionais).
+Cadastro de empresa pela equipe 2RL (a empresa também pode se cadastrar sozinha em `/auth/empresa/registrar`). Mesmas validações do cadastro público. Body: `nome`, `cnpjCpf` (CPF ou CNPJ; o antigo `cnpj` ainda é aceito), `email`, `senha` (≥ 8), `descricaoRecompensa` (obrigatórios) · `categoria`, `tipoFidelidade` (`MARCACOES`|`PONTOS`), `metaFidelidade` (1–1000), `empresaPaiId` (opcionais).
 - **201** empresa criada (sem `senha_hash`; `codigo_loja` gerado)
-- **400** campo obrigatório ausente / CNPJ, e-mail, senha, tipo ou meta inválidos
+- **400** campo obrigatório ausente / CPF ou CNPJ, e-mail, senha, tipo ou meta inválidos
 - **404** `empresaPaiId` não encontrada
-- **409** CNPJ ou e-mail já cadastrado
+- **409** CPF/CNPJ ou e-mail já cadastrado
 
 ### `GET /admin/empresas/:id`
 - **200** empresa + `licencas[]` (com `status_efetivo`, `plano`, `forma_pagamento`, `em_trial` e `gateway_assinatura_id`) + `situacao_financeira` + `cobrancas[]` (até 24, por vencimento decrescente: campos de `cobrancas` com `valor` numérico e `atrasada` boolean — em aberto e já vencida) + `contratos[]` + `empresa_pai` + `filiais[]`
 - **404** empresa não encontrada
 
 ### `PATCH /admin/empresas/:id`
-Edita o cadastro da empresa e/ou o vínculo de matriz/filial. Body (todos opcionais, mas ao menos um): `empresaPaiId` (string ou `null` para desvincular) · `nome` · `cnpj` · `email` · `categoria` (ou `null`) · `descricaoRecompensa` · `metaFidelidade` (1–1000) · `novaSenha` (≥ 8; redefine a senha de acesso). A mecânica (`tipo_fidelidade`) é fixa após o cadastro e não é editável.
+Edita o cadastro da empresa e/ou o vínculo de matriz/filial. Body (todos opcionais, mas ao menos um): `empresaPaiId` (string ou `null` para desvincular) · `nome` · `cnpjCpf` (CPF ou CNPJ; `cnpj` legado aceito) · `email` · `categoria` (ou `null`) · `descricaoRecompensa` · `metaFidelidade` (1–1000) · `novaSenha` (≥ 8; redefine a senha de acesso). A mecânica (`tipo_fidelidade`) é fixa após o cadastro e não é editável.
 - **200** empresa atualizada (sem `senha_hash`)
-- **400** nenhum campo informado / CNPJ, e-mail, senha ou meta inválidos / empresa não pode ser matriz de si mesma / ciclo simples detectado (A matriz de B, B matriz de A)
+- **400** nenhum campo informado / CPF ou CNPJ, e-mail, senha ou meta inválidos / empresa não pode ser matriz de si mesma / ciclo simples detectado (A matriz de B, B matriz de A)
 - **404** empresa ou empresa-matriz não encontrada
-- **409** CNPJ ou e-mail já em uso por outra empresa
+- **409** CPF/CNPJ ou e-mail já em uso por outra empresa
 
 ### `GET /admin/planos`
 - **200** array de planos

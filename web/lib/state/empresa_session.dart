@@ -26,7 +26,7 @@ class EmpresaSession extends ChangeNotifier {
   /// formato de retorno do login).
   Future<void> registrar({
     required String nome,
-    required String cnpj,
+    required String documento, // CPF ou CNPJ
     required String email,
     required String senha,
     required String descricaoRecompensa,
@@ -39,7 +39,7 @@ class EmpresaSession extends ChangeNotifier {
   }) async {
     final resultado = await EmpresaApi().registrar(
       nome: nome,
-      cnpj: cnpj,
+      documento: documento,
       email: email,
       senha: senha,
       descricaoRecompensa: descricaoRecompensa,

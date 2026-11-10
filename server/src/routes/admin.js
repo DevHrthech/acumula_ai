@@ -5,7 +5,7 @@ const authAdmin = require('../middleware/authAdmin');
 const { statusEfetivo } = require('../utils/licenca');
 const asyncHandler = require('../utils/asyncHandler');
 const bcrypt = require('bcryptjs');
-const cnpjUtil = require('../utils/cnpj');
+const { analisar: analisarDocumento, campoDuplicado } = require('../utils/documento');
 const { gerarCodigoLojaUnico } = require('../utils/codigoLoja');
 const { primeiroErroTexto } = require('../utils/validar');
 const { paraData, hojeBrasilia } = require('../utils/data');
@@ -89,12 +89,13 @@ router.get('/empresas', asyncHandler(async (req, res) => {
 // cadastro público; a senha informada aqui é a inicial, entregue à empresa.
 router.post('/empresas', asyncHandler(async (req, res) => {
   const {
-    nome, cnpj, email, senha, descricaoRecompensa,
+    nome, cnpjCpf, cnpj, email, senha, descricaoRecompensa, // `cnpj`: legado (painel antigo)
     categoria, tipoFidelidade, metaFidelidade, empresaPaiId,
   } = req.body || {};
+  const documentoInformado = cnpjCpf ?? cnpj;
 
-  if (!nome || !cnpj || !email || !senha || !descricaoRecompensa) {
-    return res.status(400).json({ erro: 'Campos obrigatórios: nome, cnpj, email, senha, descricaoRecompensa.' });
+  if (!nome || !documentoInformado || !email || !senha || !descricaoRecompensa) {
+    return res.status(400).json({ erro: 'Campos obrigatórios: nome, cnpjCpf, email, senha, descricaoRecompensa.' });
   }
   const erroTexto = primeiroErroTexto({
     nome: [nome, { max: 150, obrigatorio: true }],
@@ -106,8 +107,9 @@ router.post('/empresas', asyncHandler(async (req, res) => {
   if (erroTexto) {
     return res.status(400).json({ erro: erroTexto });
   }
-  if (!cnpjUtil.isValido(cnpj)) {
-    return res.status(400).json({ erro: 'CNPJ inválido.' });
+  const documento = analisarDocumento(documentoInformado);
+  if (!documento) {
+    return res.status(400).json({ erro: 'CPF ou CNPJ inválido.' });
   }
   if (!EMAIL_REGEX.test(email)) {
     return res.status(400).json({ erro: 'Email inválido.' });
@@ -134,7 +136,7 @@ router.post('/empresas', asyncHandler(async (req, res) => {
     const empresa = await prisma.empresa.create({
       data: {
         nome,
-        cnpj: cnpjUtil.formatar(cnpj),
+        cnpj_cpf: documento.formatado,
         email: email.toLowerCase().trim(),
         senha_hash: senhaHash,
         codigo_loja: codigoLoja,
@@ -148,7 +150,7 @@ router.post('/empresas', asyncHandler(async (req, res) => {
     return res.status(201).json(sanitizarEmpresa(empresa));
   } catch (err) {
     if (err.code === 'P2002') {
-      const campo = err.meta?.target?.[0] || 'campo único';
+      const campo = campoDuplicado(err);
       return res.status(409).json({ erro: `Já existe uma empresa cadastrada com esse ${campo}.` });
     }
     throw err;
@@ -199,17 +201,18 @@ router.get('/empresas/:id', asyncHandler(async (req, res) => {
 // 2RL (ver docs/SPEC.md seção 8). Não afeta login, configuração nem cartão
 // fidelidade da filial, que continuam 100% independentes.
 //
-// Também edita o cadastro da empresa (nome, CNPJ, e-mail, categoria,
+// Também edita o cadastro da empresa (nome, CPF/CNPJ, e-mail, categoria,
 // recompensa, meta) e redefine a senha de acesso. A mecânica de fidelidade
 // (marcações/pontos) fica fixa após o cadastro, então não é editável aqui.
 router.patch('/empresas/:id', asyncHandler(async (req, res) => {
   const id = req.params.id;
   const {
-    empresaPaiId, nome, cnpj, email, categoria,
+    empresaPaiId, nome, cnpjCpf, cnpj, email, categoria, // `cnpj`: legado (painel antigo)
     descricaoRecompensa, metaFidelidade, novaSenha,
   } = req.body || {};
+  const documentoInformado = cnpjCpf !== undefined ? cnpjCpf : cnpj;
 
-  const algumCampo = [empresaPaiId, nome, cnpj, email, categoria, descricaoRecompensa, metaFidelidade, novaSenha]
+  const algumCampo = [empresaPaiId, nome, documentoInformado, email, categoria, descricaoRecompensa, metaFidelidade, novaSenha]
     .some((v) => v !== undefined);
   if (!algumCampo) {
     return res.status(400).json({ erro: 'Nenhum campo para atualizar.' });
@@ -227,11 +230,12 @@ router.patch('/empresas/:id', asyncHandler(async (req, res) => {
     }
     dados.nome = nome.trim();
   }
-  if (cnpj !== undefined) {
-    if (!cnpjUtil.isValido(cnpj)) {
-      return res.status(400).json({ erro: 'CNPJ inválido.' });
+  if (documentoInformado !== undefined) {
+    const documento = analisarDocumento(documentoInformado);
+    if (!documento) {
+      return res.status(400).json({ erro: 'CPF ou CNPJ inválido.' });
     }
-    dados.cnpj = cnpjUtil.formatar(cnpj);
+    dados.cnpj_cpf = documento.formatado;
   }
   if (email !== undefined) {
     if (typeof email !== 'string' || !EMAIL_REGEX.test(email) || email.length > 150) {
@@ -291,7 +295,7 @@ router.patch('/empresas/:id', asyncHandler(async (req, res) => {
     res.json(sanitizarEmpresa(atualizada));
   } catch (err) {
     if (err.code === 'P2002') {
-      const campo = err.meta?.target?.[0] || 'campo único';
+      const campo = campoDuplicado(err);
       return res.status(409).json({ erro: `Já existe uma empresa cadastrada com esse ${campo}.` });
     }
     throw err;

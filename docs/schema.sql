@@ -16,7 +16,7 @@
 CREATE TABLE empresas (
   id                    VARCHAR(36) PRIMARY KEY,
   nome                  VARCHAR(150) NOT NULL,
-  cnpj                  VARCHAR(18) NOT NULL UNIQUE,
+  cnpj_cpf              VARCHAR(18) NOT NULL UNIQUE, -- CPF (000.000.000-00) ou CNPJ (00.000.000/0000-00); antes de 2026-11 chamava-se `cnpj`
   email                 VARCHAR(150) NOT NULL UNIQUE,
   senha_hash            VARCHAR(255) NOT NULL,
   codigo_loja           VARCHAR(20) NOT NULL UNIQUE,

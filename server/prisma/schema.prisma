@@ -59,7 +59,9 @@ enum StatusSolicitacao {
 model Empresa {
   id                    String           @id @default(uuid()) @db.VarChar(36)
   nome                  String           @db.VarChar(150)
-  cnpj                  String           @unique @db.VarChar(18)
+  /// CPF (pessoa física, 000.000.000-00) ou CNPJ (00.000.000/0000-00), sempre
+  /// formatado. Antes da migração de 2026-11 a coluna se chamava `cnpj`.
+  cnpj_cpf              String           @unique @db.VarChar(18)
   email                 String           @unique @db.VarChar(150)
   senha_hash            String           @db.VarChar(255)
   codigo_loja           String           @unique @db.VarChar(20)
@@ -80,7 +82,7 @@ model Empresa {
   /// Cliente espelhado no Asaas. Nulo = ainda não replicado (a replicação é
   /// refeita na hora de gerar a primeira cobrança).
   asaas_customer_id     String?          @db.VarChar(50)
-  /// Trial de 15 dias concedido uma única vez por empresa (CNPJ é único).
+  /// Trial de 15 dias concedido uma única vez por empresa (CPF/CNPJ é único).
   trial_usado_em        DateTime?        @db.Timestamp(0)
   /// Aceite do termo de cobrança via gateway Asaas no auto-cadastro.
   aceite_termos_em      DateTime?        @db.Timestamp(0)

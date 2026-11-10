@@ -5,6 +5,7 @@ import '../../state/admin_session.dart';
 import '../../theme/theme_provider.dart';
 import '../../utils/abrir_link.dart';
 import '../../utils/admin_status.dart';
+import '../../utils/documento.dart';
 import '../../widgets/admin/admin_ui.dart';
 
 class AdminEmpresaDetalheScreen extends StatefulWidget {
@@ -307,7 +308,7 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
   Future<void> _editarCadastro() async {
     final e = _empresa!;
     final nome = TextEditingController(text: e['nome'] as String);
-    final cnpj = TextEditingController(text: e['cnpj'] as String);
+    final documento = TextEditingController(text: e['cnpj_cpf'] as String);
     final email = TextEditingController(text: e['email'] as String);
     final categoria = TextEditingController(text: e['categoria'] as String? ?? '');
     final recompensa = TextEditingController(text: e['descricao_recompensa'] as String? ?? '');
@@ -323,8 +324,14 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
         conteudo: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AdminField(label: 'Nome da empresa', controller: nome),
-            AdminField(label: 'CNPJ', controller: cnpj),
+            AdminField(label: 'Nome da empresa / nome completo', controller: nome),
+            AdminField(
+              label: 'CPF ou CNPJ',
+              controller: documento,
+              teclado: TextInputType.number,
+              formatadores: const [DocumentoAutoFormatter()],
+              helper: 'Até 11 dígitos é CPF; com 14 dígitos é CNPJ.',
+            ),
             AdminField(label: 'E-mail de acesso', controller: email, teclado: TextInputType.emailAddress),
             AdminField(label: 'Categoria', controller: categoria),
             AdminField(label: 'Recompensa', controller: recompensa),
@@ -356,10 +363,15 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
       return;
     }
 
+    if (documento.text.trim() != e['cnpj_cpf'] && !documentoValido(documento.text)) {
+      _mostrarErro('CPF ou CNPJ inválido. Confira os números digitados.');
+      return;
+    }
+
     // Só envia o que mudou.
     final campos = <String, dynamic>{};
     if (nome.text.trim() != e['nome']) campos['nome'] = nome.text.trim();
-    if (cnpj.text.trim() != e['cnpj']) campos['cnpj'] = cnpj.text.trim();
+    if (documento.text.trim() != e['cnpj_cpf']) campos['cnpjCpf'] = documento.text.trim();
     if (email.text.trim() != e['email']) campos['email'] = email.text.trim();
     if (categoria.text.trim() != (e['categoria'] as String? ?? '')) {
       campos['categoria'] = categoria.text.trim().isEmpty ? null : categoria.text.trim();
@@ -404,7 +416,7 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
     final empresaPai = e['empresa_pai'] as Map<String, dynamic>?;
     final filiais = (e['filiais'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
     final nome = e['nome'] as String;
-    final cnpj = e['cnpj'] as String;
+    final documento = e['cnpj_cpf'] as String;
 
     final situacao = e['situacao_financeira'] as String?;
     final statusGeral = apresentarSituacaoFinanceira(theme, situacao);
@@ -496,12 +508,12 @@ class _AdminEmpresaDetalheScreenState extends State<AdminEmpresaDetalheScreen> {
                 children: [
                   _CampoInfo(label: 'RAZÃO SOCIAL / NOME', valor: nome),
                   _CampoInfo(
-                    label: 'CNPJ',
-                    valor: cnpj,
+                    label: tipoDoDocumento(documento) == TipoDocumento.cpf ? 'CPF' : 'CNPJ',
+                    valor: documento,
                     selo: AdminBadge(
-                      texto: cnpjValido(cnpj) ? 'Válido' : 'Verificar',
-                      cor: cnpjValido(cnpj) ? theme.success : theme.warning,
-                      fundo: cnpjValido(cnpj) ? theme.successBg : theme.warningBg,
+                      texto: documentoValido(documento) ? 'Válido' : 'Verificar',
+                      cor: documentoValido(documento) ? theme.success : theme.warning,
+                      fundo: documentoValido(documento) ? theme.successBg : theme.warningBg,
                     ),
                   ),
                   _CampoInfo(label: 'E-MAIL DE ACESSO', valor: e['email'] as String),

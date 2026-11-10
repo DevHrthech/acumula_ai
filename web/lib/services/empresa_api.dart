@@ -53,7 +53,7 @@ class EmpresaApi {
   /// devolve `{empresa, token}` igual ao login.
   Future<Map<String, dynamic>> registrar({
     required String nome,
-    required String cnpj,
+    required String documento, // CPF ou CNPJ (o servidor deduz pelo tamanho)
     required String email,
     required String senha,
     required String descricaoRecompensa,
@@ -69,7 +69,7 @@ class EmpresaApi {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'nome': nome,
-        'cnpj': cnpj,
+        'cnpjCpf': documento,
         'email': email,
         'senha': senha,
         'descricaoRecompensa': descricaoRecompensa,

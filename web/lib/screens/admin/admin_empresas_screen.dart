@@ -6,6 +6,7 @@ import '../../state/admin_session.dart';
 import '../../theme/theme_provider.dart';
 import '../../utils/admin_status.dart';
 import '../../utils/baixar_arquivo.dart';
+import '../../utils/documento.dart';
 import '../../widgets/admin/admin_ui.dart';
 import 'admin_empresa_detalhe_screen.dart';
 
@@ -52,7 +53,7 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
 
   Future<void> _novaEmpresa() async {
     final nome = TextEditingController();
-    final cnpj = TextEditingController();
+    final documento = TextEditingController();
     final email = TextEditingController();
     final senha = TextEditingController();
     final recompensa = TextEditingController();
@@ -60,6 +61,8 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
     final meta = TextEditingController(text: '10');
     String tipo = 'MARCACOES';
     String? matrizId;
+    // Empresa (CNPJ) ou pessoa física (CPF).
+    TipoDocumento tipoDoc = TipoDocumento.cnpj;
 
     final confirmado = await showDialog<bool>(
       context: context,
@@ -74,19 +77,37 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
           conteudo: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: SegmentedButton<TipoDocumento>(
+                  segments: const [
+                    ButtonSegment(value: TipoDocumento.cnpj, label: Text('Empresa (CNPJ)'), icon: Icon(Icons.business_outlined)),
+                    ButtonSegment(value: TipoDocumento.cpf, label: Text('Pessoa física (CPF)'), icon: Icon(Icons.person_outline)),
+                  ],
+                  selected: {tipoDoc},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (escolha) => setDialogState(() {
+                    tipoDoc = escolha.first;
+                    // Reaplica a máscara do novo tipo ao que já foi digitado.
+                    documento.text = formatarDocumento(documento.text, tipoDoc);
+                  }),
+                ),
+              ),
               AdminField(
-                label: 'Nome da empresa *',
+                label: tipoDoc == TipoDocumento.cpf ? 'Nome completo *' : 'Nome da empresa *',
                 controller: nome,
-                placeholder: 'Ex: Barbearia Estilo LTDA',
+                placeholder: tipoDoc == TipoDocumento.cpf ? 'Ex: Maria da Silva' : 'Ex: Barbearia Estilo LTDA',
               ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: AdminField(
-                      label: 'CNPJ *',
-                      controller: cnpj,
-                      placeholder: '00.000.000/0000-00',
+                      label: '${tipoDoc.rotulo} *',
+                      controller: documento,
+                      placeholder: tipoDoc.mascaraExemplo,
+                      teclado: TextInputType.number,
+                      formatadores: [DocumentoFormatter(tipoDoc)],
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -193,11 +214,15 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
 
     final metaNum = int.tryParse(meta.text.trim());
     if (nome.text.trim().isEmpty ||
-        cnpj.text.trim().isEmpty ||
+        documento.text.trim().isEmpty ||
         email.text.trim().isEmpty ||
         senha.text.isEmpty ||
         recompensa.text.trim().isEmpty) {
-      erro('Preencha nome, CNPJ, e-mail, senha e recompensa.');
+      erro('Preencha nome, ${tipoDoc.rotulo}, e-mail, senha e recompensa.');
+      return;
+    }
+    if (tipoDoDocumento(documento.text) != tipoDoc || !documentoValido(documento.text)) {
+      erro('${tipoDoc.rotulo} inválido. Confira os números digitados.');
       return;
     }
     if (metaNum == null) {
@@ -208,7 +233,7 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
     try {
       await widget.session.api.criarEmpresa(
         nome: nome.text.trim(),
-        cnpj: cnpj.text.trim(),
+        documento: documento.text.trim(),
         email: email.text.trim(),
         senha: senha.text,
         descricaoRecompensa: recompensa.text.trim(),
@@ -230,10 +255,10 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
   }
 
   void _exportarCsv() {
-    final linhas = <String>['Nome;CNPJ;Email;Codigo;Situacao;Plano;Forma de pagamento'];
+    final linhas = <String>['Nome;CNPJ/CPF;Email;Codigo;Situacao;Plano;Forma de pagamento'];
     for (final e in _listaFiltrada) {
       linhas.add(
-        '${e['nome']};${e['cnpj']};${e['email']};${e['codigo_loja']};${e['situacao_financeira'] ?? 'SEM_LICENCA'};${e['plano_nome'] ?? ''};${e['forma_pagamento'] ?? ''}',
+        '${e['nome']};${e['cnpj_cpf']};${e['email']};${e['codigo_loja']};${e['situacao_financeira'] ?? 'SEM_LICENCA'};${e['plano_nome'] ?? ''};${e['forma_pagamento'] ?? ''}',
       );
     }
     final csv = linhas.join('\n');
@@ -251,10 +276,13 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
     if (busca.isNotEmpty) {
       lista = lista.where((e) {
         final nome = (e['nome'] as String? ?? '').toLowerCase();
-        final cnpj = (e['cnpj'] as String? ?? '').toLowerCase();
+        final documento = (e['cnpj_cpf'] as String? ?? '').toLowerCase();
         final codigo = (e['codigo_loja'] as String? ?? '').toLowerCase();
+        // Busca também só pelos dígitos (sem pontos, barra e traço).
+        final digitosBusca = somenteDigitos(busca);
         return nome.contains(busca) ||
-            cnpj.contains(busca) ||
+            documento.contains(busca) ||
+            (digitosBusca.isNotEmpty && somenteDigitos(documento).contains(digitosBusca)) ||
             codigo.contains(busca);
       }).toList();
     }
@@ -383,7 +411,7 @@ class _AdminEmpresasScreenState extends State<AdminEmpresasScreen> {
                 child: TextField(
                   controller: _buscaController,
                   decoration: InputDecoration(
-                    hintText: 'Buscar por razão social, CNPJ ou código',
+                    hintText: 'Buscar por nome, CPF/CNPJ ou código',
                     prefixIcon: const Icon(Icons.search, size: 20),
                     filled: true,
                     fillColor: theme.cardBg,
@@ -556,7 +584,7 @@ class _LinhaEmpresa extends StatelessWidget {
                         runSpacing: 4,
                         children: [
                           Text(
-                            'CNPJ: ${empresa['cnpj']}',
+                            '${(tipoDoDocumento('${empresa['cnpj_cpf']}') ?? TipoDocumento.cnpj).rotulo}: ${empresa['cnpj_cpf']}',
                             style: TextStyle(
                               fontSize: 12.5,
                               color: theme.textMuted,

@@ -634,7 +634,7 @@ Revisão completa de `server/`, `mobile/`, `web/` (painel da Empresa) e admin. C
 - Trocar a forma de pagamento **pelo admin** foi testado só localmente; em produção só o caminho da própria empresa.
 - Contrato com assinatura eletrônica continua sem provedor (seção 11).
 
-## 22. Nota fiscal de serviço (NFS-e) pelo Asaas (2026-11-07) — IMPLEMENTADO LOCALMENTE, NÃO PUBLICADO
+## 22. Nota fiscal de serviço (NFS-e) pelo Asaas (2026-11-07) — PUBLICADO em 2026-11-08, emissão DESLIGADA (`NFSE_ATIVA` ausente no `.env` de produção)
 
 **Decisão (usuário):** emitir a NFS-e pelo próprio Asaas, **após o pagamento confirmado**; enviar por e-mail à empresa e deixar **PDF (DANFSe) e XML** para baixar em `/app/` (tela Assinatura). Custo informado pelo Asaas: R$ 0,49 por nota emitida (agendar/cancelar não cobram).
 
@@ -656,3 +656,15 @@ Revisão completa de `server/`, `mobile/`, `web/` (painel da Empresa) e admin. C
    - o que acontece se a configuração fiscal da conta não existir.
 5. **Ordem de deploy:** `db push` **antes** de subir o `server/src/` e de rodar `asaas-webhook.js`. Sem a tabela `notas_fiscais`, os eventos `INVOICE_*` dariam 500 e o Asaas **pausa a fila de webhook após 15 falhas seguidas** — o que também paralisaria os eventos de pagamento (renovação de licença).
 6. Painel: nota com `CANCELLATION_DENIED` (cancelamento negado, nota segue válida) continua aparecendo; cancelada/em erro some.
+
+## 23. Cadastro de pessoa física (CPF) e coluna `empresas.cnpj_cpf` (2026-11-10) — PUBLICADO em 2026-11-10
+
+**Publicação feita:** migração SQL (5 empresas, 0 divergências vs backup) → `server/src/` (61 arquivos) → Passenger reiniciado → painéis `/app/` e admin → coluna virtual `cnpj` removida; `prisma db push` confirma o banco "já em sincronia". Banco em produção: MySQL **5.7.44** (sem `RENAME COLUMN`; usar `CHANGE`).
+
+**Decisão (usuário):** além de CNPJ, a empresa pode se cadastrar com **CPF** (pessoa física), e a coluna do banco passa a se chamar `cnpj_cpf`, migrando os dados existentes.
+
+- **Banco:** `empresas.cnpj` → `empresas.cnpj_cpf` (`VARCHAR(18) NOT NULL UNIQUE`, mesmo tipo: comporta CPF formatado, 14 caracteres, e CNPJ formatado, 18). Migração por **SQL direto**, nunca por `prisma db push` (que trataria o rename como apagar+criar e perderia os dados). Estratégia sem queda: `ALTER TABLE empresas CHANGE cnpj cnpj_cpf VARCHAR(18) NOT NULL, ADD COLUMN cnpj VARCHAR(18) GENERATED ALWAYS AS (cnpj_cpf) VIRTUAL;` — a coluna virtual `cnpj` deixa o código antigo (API em produção e app do celular) continuar lendo até o código novo entrar no ar; depois dela é removida (`ALTER TABLE empresas DROP COLUMN cnpj;`). Durante essa janela, criar/editar empresa pelo código antigo falha (coluna gerada não aceita escrita).
+- **Servidor:** `utils/documento.js` (`analisar`) deduz o tipo pelo número de dígitos (11 = CPF, 14 = CNPJ) e valida o dígito verificador (reusa `utils/cpf.js` e `utils/cnpj.js`). `POST /auth/empresa/registrar`, `POST /admin/empresas` e `PATCH /admin/empresas/:id` aceitam `cnpjCpf` (e o legado `cnpj`); erro `CPF ou CNPJ inválido.`; 409 de duplicidade diz "CPF/CNPJ". Respostas trazem `cnpj_cpf`. `VERSAO_TERMOS` subiu para `2026-11` (o aceite do Asaas passa a citar CPF/CNPJ). O Asaas recebe o documento em `cpfCnpj` (aceita os dois); tomador PF é válido na NFS-e.
+- **Painéis:** auto-cadastro e "Nova empresa" do admin têm seletor **Empresa (CNPJ) | Pessoa física (CPF)** (máscara, rótulos e validação mudam; para CPF o nome vira "Nome completo", pois vai ao Asaas e à nota fiscal como tomador). Admin: lista/detalhe/edição leem `cnpj_cpf`, mostram CPF ou CNPJ e o selo Válido/Verificar vale para os dois; busca aceita só os dígitos. Util compartilhado em `web/lib/utils/documento.dart` (a validação que ficava em `widgets/admin/admin_ui.dart` foi movida para lá).
+- **Compatibilidade na publicação:** o painel admin antigo lê `cnpj` (ficaria em branco/quebraria o detalhe entre o reinício do servidor e o deploy do painel novo — janela curta, uso interno); o painel `/app/` antigo só envia `cnpj`, que o servidor novo ainda aceita.
+- **Limitação herdada:** não há prova de posse do documento (ver seção 20); vale também para CPF. Matriz/filial só faz sentido para CNPJ.
