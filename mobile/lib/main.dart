@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/mobile_root_screen.dart';
-import 'services/biometria.dart';
-import 'state/bloqueio.dart';
-import 'widgets/bloqueio_host.dart';
 import 'state/cliente_session.dart';
 import 'theme/theme_provider.dart';
 
@@ -25,9 +22,6 @@ class AcumulaAiApp extends StatelessWidget {
               listenable: themeProvider,
               builder: (context, child) {
                 return MaterialApp(
-                  navigatorKey: Bloqueio.navegadorKey,
-                  // Tela de bloqueio por biometria por cima de todo o app.
-                  builder: (context, child) => BloqueioHost(child: child ?? const SizedBox.shrink()),
                   title: 'Acumula Aí',
                   debugShowCheckedModeBanner: false,
                   theme: ThemeData.light(),
@@ -69,13 +63,7 @@ class _InicioState extends State<_Inicio> {
   void initState() {
     super.initState();
     final session = ClienteSessionScope.of(context);
-    _restauracao = session.restaurar().then((restaurou) async {
-      // Sessão retomada + login biométrico ligado: o app abre já bloqueado.
-      if (restaurou && session.cliente?['login_biometrico'] == true && await Biometria.disponivel()) {
-        Bloqueio.instance.bloquear();
-      }
-      return restaurou;
-    });
+    _restauracao = session.restaurar();
   }
 
   @override

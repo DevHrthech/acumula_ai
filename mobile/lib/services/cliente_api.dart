@@ -212,7 +212,6 @@ class ClienteApi {
   Future<Map<String, dynamic>> atualizarPreferencias({
     bool? notificacoesPush,
     bool? notificacoesEmail,
-    bool? loginBiometrico,
   }) async {
     final res = await http.patch(
       Uri.parse('$baseUrl/clientes/me/preferencias'),
@@ -220,7 +219,6 @@ class ClienteApi {
       body: jsonEncode({
         'notificacoesPush': ?notificacoesPush,
         'notificacoesEmail': ?notificacoesEmail,
-        'loginBiometrico': ?loginBiometrico,
       }),
     );
     return await _handle(res) as Map<String, dynamic>;

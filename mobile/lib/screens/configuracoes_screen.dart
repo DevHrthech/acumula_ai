@@ -3,9 +3,7 @@ import '../state/cliente_session.dart';
 import '../theme/theme_provider.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../services/cliente_api.dart';
-import '../services/biometria.dart';
 import '../services/google_auth.dart';
-import '../state/bloqueio.dart';
 import '../utils/links.dart';
 import 'login_screen.dart';
 
@@ -17,44 +15,14 @@ class ConfiguracoesScreen extends StatefulWidget {
 }
 
 class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
-  Future<void> _alternar(BuildContext context, {bool? push, bool? email, bool? biometrico}) async {
+  Future<void> _alternar(BuildContext context, {bool? push, bool? email}) async {
     final session = ClienteSessionScope.of(context);
     try {
-      await session.atualizarPreferencias(notificacoesPush: push, notificacoesEmail: email, loginBiometrico: biometrico);
+      await session.atualizarPreferencias(notificacoesPush: push, notificacoesEmail: email);
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Não foi possível salvar a preferência.')));
     }
-  }
-
-  /// Liga/desliga o bloqueio do app por digital/rosto. Nos dois sentidos pede a
-  /// identidade na hora: ligar prova que a biometria funciona neste aparelho
-  /// (senão o cliente se trancaria fora) e desligar impede que alguém com o
-  /// celular desbloqueado tire a proteção.
-  Future<void> _alternarBiometria(BuildContext context, bool ligar) async {
-    final messenger = ScaffoldMessenger.of(context);
-    if (!await Biometria.disponivel()) {
-      messenger.showSnackBar(const SnackBar(
-        content: Text('Seu celular não tem digital, rosto ou bloqueio de tela configurado. Ative um nas configurações do celular.'),
-      ));
-      return;
-    }
-    final bloqueio = Bloqueio.instance;
-    bloqueio.autenticando = true;
-    ResultadoBiometria resultado;
-    try {
-      resultado = await Biometria.autenticar(
-        ligar ? 'Confirme sua identidade para ativar o desbloqueio por biometria' : 'Confirme sua identidade para desativar o desbloqueio por biometria',
-      );
-    } finally {
-      bloqueio.autenticando = false;
-    }
-    if (!context.mounted) return;
-    if (resultado != ResultadoBiometria.ok) {
-      messenger.showSnackBar(const SnackBar(content: Text('Não foi possível confirmar sua identidade.')));
-      return;
-    }
-    await _alternar(context, biometrico: ligar);
   }
 
   Future<void> _editarEmail(BuildContext context) async {
@@ -91,7 +59,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
       builder: (context, child) {
         final pushEnabled = (session.cliente?['notificacoes_push'] as bool?) ?? true;
         final emailEnabled = (session.cliente?['notificacoes_email'] as bool?) ?? false;
-        final biometricEnabled = (session.cliente?['login_biometrico'] as bool?) ?? false;
         return Scaffold(
           backgroundColor: Colors.transparent,
           body: SafeArea(
@@ -123,21 +90,6 @@ class _ConfiguracoesScreenState extends State<ConfiguracoesScreen> {
                         icon: Icons.email_outlined,
                         value: emailEnabled,
                         onChanged: (v) => _alternar(context, email: v),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildSection(
-                    theme: theme,
-                    title: 'Segurança',
-                    children: [
-                      _SwitchTile(
-                        theme: theme,
-                        title: 'Desbloqueio por biometria',
-                        subtitle: 'Peça digital ou rosto ao abrir o app',
-                        icon: Icons.fingerprint,
-                        value: biometricEnabled,
-                        onChanged: (v) => _alternarBiometria(context, v),
                       ),
                     ],
                   ),

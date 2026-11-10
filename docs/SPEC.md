@@ -95,6 +95,7 @@ Empresas (geralmente pequeno/médio varejo e serviços) querem fidelizar cliente
 - [ ] Nome/identidade do app para a loja de aplicativos, contas de desenvolvedor (Apple/Google) já existentes? — **Atualização 2026-10-09:** nome definido ("Acumula Aí – Fidelidade", pacote `br.com.acumulaai.cliente`); a conta Google Play ainda precisa ser criada/verificada pelo responsável (passo a passo em [dev/PLAY_STORE.md](dev/PLAY_STORE.md)); Apple/iOS segue fora de escopo.
 - [ ] Confirmar espaço em disco disponível no plano de hospedagem cPanel para armazenar as imagens de marca de todas as empresas.
 - [ ] Definir se haverá redimensionamento/otimização automática das imagens no upload (ex: lib `sharp` no Node) para garantir os tamanhos recomendados mesmo se a empresa enviar um arquivo fora do padrão.
+- [ ] **iOS do `mobile/` — configuração ainda incompleta (2026-11-10):** `NSCameraUsageDescription`/`NSPhotoLibraryUsageDescription` (câmera do QR Code e foto de perfil) e o nome exibido do app (`CFBundleDisplayName`) já foram corrigidos no `Info.plist`. **Falta, antes de testar login com Google no iOS:** criar um OAuth Client ID do tipo iOS no Google Cloud Console (bundle id `br.com.hrthech.acumulaai`, decidido manter — diferente do pacote Android `br.com.acumulaai.cliente`, mas sem risco por não haver nada registrado com o valor atual) e configurar o esquema de URL (`reversed client id`) no `Info.plist`; sem isso o botão "Google" não funciona no iOS. iOS continua nunca testado (sem Mac disponível).
 
 ## 9. Ordem de desenvolvimento
 
